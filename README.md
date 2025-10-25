@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Eram Yadak Flutter Shop (WooCommerce)
 
 ## Run (Debug)
@@ -11,3 +12,6 @@ flutter build apk   --dart-define=BASE_URL=https://eramyadak.com   --dart-define
 ```
 
 > Keys are for read-only catalog in the client. For orders, use a server-side proxy.
+=======
+# eramyadak_shop
+>>>>>>> ba82c579b1fd6c7f4d05dbe10e543e4e735fed19
