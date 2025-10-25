@@ -1,0 +1,1 @@
+# eramyadak_shop
