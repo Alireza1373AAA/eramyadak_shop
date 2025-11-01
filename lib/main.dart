@@ -7,9 +7,12 @@ import 'pages/categories_page.dart';
 import 'pages/cart_page.dart';
 import 'pages/support_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/register_page.dart';
+import 'services/auth_storage.dart';
 import 'widgets/bottom_nav.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const MyApp());
 }
 
@@ -38,7 +41,91 @@ class MyApp extends StatelessWidget {
       ],
 
       // 🏠 صفحه اصلی
-      home: const Shell(),
+      home: const RegistrationGate(),
+    );
+  }
+}
+
+class RegistrationGate extends StatefulWidget {
+  const RegistrationGate({super.key});
+
+  @override
+  State<RegistrationGate> createState() => _RegistrationGateState();
+}
+
+class _RegistrationGateState extends State<RegistrationGate> {
+  late Future<bool> _registrationFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _registrationFuture = AuthStorage.isRegistered();
+  }
+
+  void _handleRegistered() {
+    setState(() {
+      _registrationFuture = Future<bool>.value(true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<bool>(
+      future: _registrationFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState != ConnectionState.done) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Scaffold(
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'خطا در بررسی وضعیت ثبت‌نام',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        setState(() {
+                          _registrationFuture = AuthStorage.isRegistered();
+                        });
+                      },
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('تلاش مجدد'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        final isRegistered = snapshot.data ?? false;
+        if (!isRegistered) {
+          return RegisterPage(
+            lockNavigation: true,
+            onRegistered: _handleRegistered,
+          );
+        }
+
+        return const Shell();
+      },
     );
   }
 }

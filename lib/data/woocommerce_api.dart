@@ -3,6 +3,17 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../config.dart';
 
+class WooApiException implements Exception {
+  WooApiException(this.message, {this.statusCode});
+
+  final String message;
+  final int? statusCode;
+
+  @override
+  String toString() =>
+      statusCode == null ? 'WooApiException: $message' : 'WooApiException($statusCode): $message';
+}
+
 /// WooCommerce Store API (عمومی - بدون کلید)
 /// - Products:   GET /wp-json/wc/store/v1/products
 /// - Categories: GET /wp-json/wc/store/v1/products/categories
@@ -13,6 +24,11 @@ class WooApi {
     return Uri.parse('$_base/wp-json/wc/store/v1/$path')
         .replace(queryParameters: qp);
   }
+
+  Uri _woo(String path) => Uri.parse('${AppConfig.baseUrl}/wp-json/wc/v3/$path');
+
+  String get _basicAuth =>
+      'Basic ${base64Encode(utf8.encode('${AppConfig.wcKey}:${AppConfig.wcSecret}'))}';
 
   /// گرفتن محصولات از Store API
   /// پارامترهای مجاز: page, per_page, order (asc/desc), orderby (date/title/price/rating/popularity)
@@ -66,5 +82,54 @@ class WooApi {
     return hideEmpty
         ? filtered.where((m) => (m['count'] ?? 0) > 0).toList()
         : filtered;
+  }
+
+  /// ساخت کاربر جدید در ووکامرس همراه با تنظیم اطلاعات اولیه.
+  Future<Map<String, dynamic>> createCustomer({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String phone,
+    required String password,
+  }) async {
+    final response = await http.post(
+      _woo('customers'),
+      headers: {
+        'Authorization': _basicAuth,
+        'Content-Type': 'application/json; charset=utf-8',
+      },
+      body: json.encode({
+        'email': email,
+        'first_name': firstName,
+        'last_name': lastName,
+        'username': email,
+        'password': password,
+        'billing': {
+          'first_name': firstName,
+          'last_name': lastName,
+          'phone': phone,
+          'email': email,
+        },
+        'shipping': {
+          'first_name': firstName,
+          'last_name': lastName,
+          'phone': phone,
+        },
+      }),
+    );
+
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      String message = response.body;
+      try {
+        final Map<String, dynamic> decoded =
+            json.decode(response.body) as Map<String, dynamic>;
+        message = decoded['message']?.toString() ?? message;
+      } catch (_) {
+        // استفاده از پیام خام پاسخ
+      }
+      throw WooApiException(message, statusCode: response.statusCode);
+    }
+
+    return json.decode(response.body) as Map<String, dynamic>;
   }
 }
