@@ -1,13 +1,13 @@
+// lib/pages/register_page.dart
 import 'dart:async';
-
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../data/woocommerce_api.dart';
-import '../services/auth_storage.dart';
-import '../services/otp_manager.dart';
-import '../services/sms_exception.dart';
-import '../services/sms_service.dart';
-import '../widgets/account_webview.dart';
+import 'package:eramyadak_shop/config.dart';
+import 'package:eramyadak_shop/services/otp_manager.dart';
+import 'package:eramyadak_shop/services/sms_exception.dart';
+import 'package:eramyadak_shop/services/auth_storage.dart';
+import 'package:eramyadak_shop/data/woocommerce_api.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({
@@ -27,284 +27,90 @@ class _RegisterPageState extends State<RegisterPage> {
   final _formKey = GlobalKey<FormState>();
   final _otpKey = GlobalKey<FormState>();
 
-  final _firstNameCtrl = TextEditingController();
-  final _lastNameCtrl = TextEditingController();
-  final _emailCtrl = TextEditingController();
+  final _firstCtrl = TextEditingController();
+  final _lastCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
   final _otpCtrl = TextEditingController();
 
   final _otpManager = OtpManager();
-  final WooApi _wooApi = WooApi();
+  final _wooApi = WooApi();
 
-  bool _codeSent = false;
-  bool _isSendingCode = false;
-  bool _isRegistering = false;
-  Timer? _countdownTimer;
+  bool _sending = false;
+  bool _sent = false;
+  bool _registering = false;
+  bool _existingCustomer = false;
+  bool _loginOnly = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      final registered = await AuthStorage.isRegistered();
+      if (!mounted) return;
+      if (registered &&
+          Navigator.of(context).canPop() &&
+          !widget.lockNavigation) {
+        Navigator.of(context).pop();
+      }
+    });
+  }
 
   @override
   void dispose() {
-    _countdownTimer?.cancel();
-    _otpManager.dispose();
-    _firstNameCtrl.dispose();
-    _lastNameCtrl.dispose();
-    _emailCtrl.dispose();
+    _timer?.cancel();
+    _firstCtrl.dispose();
+    _lastCtrl.dispose();
     _phoneCtrl.dispose();
-    _passwordCtrl.dispose();
     _otpCtrl.dispose();
     super.dispose();
   }
 
+  Duration? get _remain => _otpManager.remaining;
 
-  @override
-  Widget build(BuildContext context) {
-    final remaining = _otpManager.remaining;
-
-    return WillPopScope(
-      onWillPop: () async => !widget.lockNavigation,
-      child: Directionality(
-        textDirection: TextDirection.rtl,
-        child: Scaffold(
-          appBar: AppBar(
-            title: const Text('ثبت‌نام با تایید پیامکی'),
-            centerTitle: true,
-            automaticallyImplyLeading: !widget.lockNavigation,
-          ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Card(
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const Text(
-                          'برای ساخت حساب کاربری ابتدا اطلاعات خود را وارد کنید. سپس کد تایید برای شماره موبایل‌تان ارسال خواهد شد.',
-                          style: TextStyle(fontSize: 14),
-                        ),
-                        const SizedBox(height: 16),
-                        Form(
-                          key: _formKey,
-                          child: Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(child: _buildFirstNameField()),
-                                  const SizedBox(width: 12),
-                                  Expanded(child: _buildLastNameField()),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              _buildEmailField(),
-                              const SizedBox(height: 12),
-                              _buildPhoneField(),
-                              const SizedBox(height: 12),
-                              _buildPasswordField(),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ElevatedButton.icon(
-                          onPressed: _isSendingCode ? null : _onSendCode,
-                          icon: _isSendingCode
-                              ? const SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(strokeWidth: 2),
-                                )
-                              : const Icon(Icons.sms_outlined),
-                          label: Text(
-                            _codeSent ? 'ارسال مجدد کد تایید' : 'ارسال کد تایید',
-                          ),
-                        ),
-                        if (_codeSent) ...[
-                          const SizedBox(height: 12),
-                          Form(
-                            key: _otpKey,
-                            child: _buildOtpField(),
-                          ),
-                          const SizedBox(height: 8),
-                          if (remaining != null)
-                            Text(
-                              remaining == Duration.zero
-                                  ? 'کد منقضی شده است. دوباره ارسال کنید.'
-                                  : 'مدت اعتبار کد: ${_formatRemaining(remaining)}',
-                              style: TextStyle(
-                                color: remaining == Duration.zero
-                                    ? Colors.red
-                                    : Colors.grey.shade700,
-                              ),
-                            ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                ElevatedButton(
-                  onPressed: _isRegistering ? null : _onRegister,
-                  style: ElevatedButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  child: _isRegistering
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('ایجاد حساب کاربری'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  String _autoNameForPhone(String phone) {
+    final cleaned = phone.replaceAll(RegExp(r'\D'), '');
+    final suf = cleaned.length >= 4
+        ? cleaned.substring(cleaned.length - 4)
+        : cleaned;
+    return 'کاربر$suf';
   }
 
-  Widget _buildFirstNameField() {
-    return TextFormField(
-      controller: _firstNameCtrl,
-      decoration: const InputDecoration(
-        labelText: 'نام',
-        prefixIcon: Icon(Icons.person_outline),
-      ),
-      textInputAction: TextInputAction.next,
-      validator: (value) {
-        if (value == null || value.trim().isEmpty) {
-          return 'لطفاً نام خود را وارد کنید';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildLastNameField() {
-    return TextFormField(
-      controller: _lastNameCtrl,
-      decoration: const InputDecoration(
-        labelText: 'نام خانوادگی',
-        prefixIcon: Icon(Icons.person),
-      ),
-      textInputAction: TextInputAction.next,
-      validator: (value) {
-        if (value == null || value.trim().isEmpty) {
-          return 'لطفاً نام خانوادگی را وارد کنید';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildEmailField() {
-    return TextFormField(
-      controller: _emailCtrl,
-      decoration: const InputDecoration(
-        labelText: 'ایمیل',
-        prefixIcon: Icon(Icons.email_outlined),
-      ),
-      keyboardType: TextInputType.emailAddress,
-      textInputAction: TextInputAction.next,
-      validator: (value) {
-        if (value == null || value.trim().isEmpty) {
-          return 'ایمیل الزامی است';
-        }
-        final emailRegex = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-        if (!emailRegex.hasMatch(value.trim())) {
-          return 'ایمیل معتبر وارد کنید';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildPhoneField() {
-    return TextFormField(
-      controller: _phoneCtrl,
-      decoration: const InputDecoration(
-        labelText: 'شماره موبایل',
-        prefixIcon: Icon(Icons.phone_iphone),
-      ),
-      keyboardType: TextInputType.phone,
-      textInputAction: TextInputAction.next,
-      validator: (value) {
-        if (value == null || value.trim().isEmpty) {
-          return 'شماره موبایل الزامی است';
-        }
-        final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
-        if (digits.length < 10) {
-          return 'شماره موبایل معتبر نیست';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildPasswordField() {
-    return TextFormField(
-      controller: _passwordCtrl,
-      decoration: const InputDecoration(
-        labelText: 'رمز عبور',
-        prefixIcon: Icon(Icons.lock_outline),
-      ),
-      obscureText: true,
-      validator: (value) {
-        if (value == null || value.isEmpty) {
-          return 'رمز عبور را وارد کنید';
-        }
-        if (value.length < 6) {
-          return 'رمز عبور باید حداقل ۶ کاراکتر باشد';
-        }
-        return null;
-      },
-    );
-  }
-
-  Widget _buildOtpField() {
-    return TextFormField(
-      controller: _otpCtrl,
-      decoration: const InputDecoration(
-        labelText: 'کد تایید',
-        prefixIcon: Icon(Icons.verified_outlined),
-      ),
-      keyboardType: TextInputType.number,
-      validator: (value) {
-        if (value == null || value.trim().length != 6) {
-          return 'کد تایید شش رقمی را وارد کنید';
-        }
-        return null;
-      },
-    );
-  }
-
-  Future<void> _onSendCode() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  // -----------------------------
+  // ارسال کد پیامکی
+  // -----------------------------
+  Future<void> _send() async {
+    if (!_formKey.currentState!.validate()) return;
 
     FocusScope.of(context).unfocus();
-
-    setState(() {
-      _isSendingCode = true;
-    });
+    setState(() => _sending = true);
 
     try {
-      final messageId = await _otpManager.sendCode(_phoneCtrl.text);
-      setState(() {
-        _codeSent = true;
-      });
-      _startCountdown();
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('کد تایید ارسال شد. (شناسه پیام: $messageId)')),
+      final normalized = SmsConfig.normalizePhoneToPlus98(_phoneCtrl.text);
+
+      // بررسی سریع وجود مشتری (اختیاری، اگر خطا داشتیم ادامه می‌دهیم)
+      try {
+        final exists = await _wooApi.customerExists(phone: normalized);
+        if (mounted) setState(() => _existingCustomer = exists);
+      } catch (e) {
+        debugPrint('customerExists check failed: $e');
+        // نادیده می‌گیریم؛ ارسال کد مهمتر است
+      }
+
+      await _otpManager.sendCode(_phoneCtrl.text);
+      setState(() => _sent = true);
+
+      _timer?.cancel();
+      _timer = Timer.periodic(
+        const Duration(seconds: 1),
+        (_) => setState(() {}),
       );
+
+      if (!mounted) return;
+      final msg = _existingCustomer
+          ? 'کد تایید ارسال شد. (به نظر می‌رسد قبلاً ثبت‌نام کرده‌اید.)'
+          : 'کد تایید ارسال شد.';
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
     } on SmsException catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -312,222 +118,321 @@ class _RegisterPageState extends State<RegisterPage> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطای غیرمنتظره در ارسال پیامک: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('خطای غیرمنتظره: $e')));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isSendingCode = false;
-        });
-      }
+      if (mounted) setState(() => _sending = false);
     }
   }
 
-  Future<void> _onRegister() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
+  // -----------------------------
+  // ثبت‌نام / ورود
+  // -----------------------------
+  Future<void> _register() async {
+    if (!_formKey.currentState!.validate()) return;
 
-    FocusScope.of(context).unfocus();
-
-    if (!_codeSent) {
+    if (!_sent) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('ابتدا کد تایید را دریافت کنید.')),
+        const SnackBar(content: Text('ابتدا «ارسال کد» را بزنید')),
       );
       return;
     }
 
-    if (!_otpKey.currentState!.validate()) {
+    if (!_otpKey.currentState!.validate()) return;
+
+    final err = _otpManager.validate(_phoneCtrl.text, _otpCtrl.text);
+    if (err != null) {
+      final msg = switch (err) {
+        OtpValidationError.notRequested => 'ابتدا کد تایید را دریافت کنید.',
+        OtpValidationError.phoneMismatch =>
+          'شماره موبایل با شماره‌ای که کد برای آن ارسال شده متفاوت است.',
+        OtpValidationError.expired =>
+          'کد منقضی شده است. دوباره «ارسال کد» را بزنید.',
+        OtpValidationError.codeMismatch => 'کد وارد شده صحیح نیست.',
+        OtpValidationError.notAllowed =>
+          'شماره شما مجاز به استفاده از این سرویس نیست.',
+      };
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
       return;
     }
 
-    OtpValidationError? otpError;
-    try {
-      otpError = _otpManager.validate(_phoneCtrl.text, _otpCtrl.text);
-    } on SmsException catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('شماره موبایل معتبر نیست: ${e.message}')),
-      );
-      return;
-    }
-
-    if (otpError != null) {
-      final message = _mapOtpError(otpError);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-      return;
-    }
-
-    setState(() {
-      _isRegistering = true;
-    });
+    setState(() => _registering = true);
 
     try {
-      final customer = await _wooApi.createCustomer(
-        firstName: _firstNameCtrl.text.trim(),
-        lastName: _lastNameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        phone: _otpManager.lastPhone ?? _phoneCtrl.text.trim(),
-        password: _passwordCtrl.text,
-      );
+      final phonePlus98 = SmsConfig.normalizePhoneToPlus98(_phoneCtrl.text);
+      final first = _loginOnly
+          ? _autoNameForPhone(_phoneCtrl.text)
+          : _firstCtrl.text.trim();
+      final last = _loginOnly ? '' : _lastCtrl.text.trim();
 
-      if (!await _saveRegistrationLocally()) {
+      // 1) بررسی وجود مشتری با این شماره
+      bool exists = false;
+      try {
+        exists = await _wooApi.customerExists(phone: phonePlus98);
+      } catch (e) {
+        debugPrint('customerExists failed: $e');
+        // اگر چک نشد، ادامه می‌دهیم و سعی می‌کنیم createCustomer انجام شود.
+      }
+
+      // اگر حالت login-only فعال است و کاربر موجود نیست → خطا بده
+      if (_loginOnly && !exists) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'این شماره قبلاً ثبت‌نام نکرده — ابتدا ثبت‌نام کنید.',
+            ),
+          ),
+        );
+        setState(() => _registering = false);
         return;
       }
 
-      if (!mounted) return;
-      final shouldOpenAccount = await showDialog<bool>(
-        context: context,
-        builder: (ctx) {
-          return AlertDialog(
-            title: const Text('ثبت‌نام موفق'),
-            content: Text('کاربر ${customer['email']} با موفقیت ایجاد شد.'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(true),
-                child: const Text('ورود به حساب'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(false),
-                child: const Text('بستن'),
-              ),
-            ],
+      Map<String, dynamic>? customer;
+      if (exists) {
+        // کاربر قبلاً وجود دارد -> رفتار ورود (نیازی به createCustomer نیست)
+        customer = null;
+      } else {
+        // تلاش برای ایجاد مشتری
+        try {
+          customer = await _wooApi.createCustomer(
+            firstName: first.isEmpty
+                ? _autoNameForPhone(_phoneCtrl.text)
+                : first,
+            lastName: last,
+            phone: phonePlus98,
           );
-        },
-      );
-
-      if (!mounted) return;
-      _handlePostRegistrationNavigation(shouldOpenAccount ?? false);
-    } on WooApiException catch (e) {
-      if (_isAlreadyRegisteredError(e)) {
-        if (!await _saveRegistrationLocally()) {
+          // createCustomer ممکن است null برگرداند اگر API پیام "existing email" فرستاد
+          if (customer == null) {
+            exists = true;
+          }
+        } on WooApiException catch (e) {
+          // اگر خطایی غیر از "موجود بودن" دریافت شد، به کاربر اطلاع بده و بازگرد
+          if (!mounted) rethrow;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('خطا در ثبت‌نام ووکامرس: ${e.message}')),
+          );
+          setState(() => _registering = false);
           return;
         }
-
-        if (!mounted) return;
-
-        final openAccount = await showDialog<bool>(
-          context: context,
-          builder: (ctx) {
-            return AlertDialog(
-              title: const Text('حساب کاربری موجود است'),
-              content: const Text(
-                'این ایمیل یا شماره قبلاً در سیستم ثبت شده بود. می‌توانید وارد حساب خود شوید.',
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(true),
-                  child: const Text('ورود به حساب'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.of(ctx).pop(false),
-                  child: const Text('ادامه'),
-                ),
-              ],
-            );
-          },
-        );
-
-        if (!mounted) return;
-        _handlePostRegistrationNavigation(openAccount ?? false);
-        return;
       }
 
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در ایجاد کاربر: ${e.message}')),
+      // ذخیره پروفایل محلی برای ورود خودکار دفعات بعد
+      final profile = AuthProfile(
+        firstName: first,
+        lastName: last,
+        phone: phonePlus98,
       );
+      await AuthStorage.saveProfile(profile);
+
+      if (!mounted) return;
+
+      final text = exists
+          ? 'با این شماره قبلاً ثبت‌نام شده بود — ورود موفق.'
+          : (customer == null
+                ? 'ورود موفق.' // fallback
+                : (_loginOnly
+                      ? 'ورود با شماره موفق — اگر حساب جدید ساخته شد، نام از شماره تولید شد.'
+                      : 'ثبت‌نام و ورود موفق.'));
+
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+      widget.onRegistered?.call();
+
+      if (!widget.lockNavigation && Navigator.of(context).canPop()) {
+        Navigator.of(context).pop();
+      }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطای غیرمنتظره در ایجاد کاربر: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('خطا در ذخیره اطلاعات: $e')));
     } finally {
-      if (mounted) {
-        setState(() {
-          _isRegistering = false;
-        });
-      }
+      if (mounted) setState(() => _registering = false);
     }
   }
 
-  Future<bool> _saveRegistrationLocally() async {
-    try {
-      await AuthStorage.markRegistered(
-        firstName: _firstNameCtrl.text.trim(),
-        lastName: _lastNameCtrl.text.trim(),
-        email: _emailCtrl.text.trim(),
-        phone: _otpManager.lastPhone ?? _phoneCtrl.text.trim(),
-      );
-      return true;
-    } catch (error) {
-      if (!mounted) {
-        return false;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('خطا در ذخیره اطلاعات ثبت‌نام: $error')),
-      );
-      return false;
-    }
-  }
+  // -----------------------------
+  // UI
+  // -----------------------------
+  @override
+  Widget build(BuildContext context) {
+    final remain = _remain;
 
-  void _handlePostRegistrationNavigation(bool openAccount) {
-    if (!mounted) return;
-    if (openAccount) {
-      final route = MaterialPageRoute(
-        builder: (_) => const AccountWebView(
-          title: 'ورود / حساب من',
-          path: '/my-account/',
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('ثبت‌نام / ورود با پیامک'),
+          automaticallyImplyLeading: !widget.lockNavigation,
+          centerTitle: true,
         ),
-      );
-      if (widget.lockNavigation) {
-        Navigator.of(context).push(route);
-      } else {
-        Navigator.of(context).pushReplacement(route);
-      }
-    } else if (!widget.lockNavigation && Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    }
-    widget.onRegistered?.call();
-  }
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              Card(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      SwitchListTile(
+                        value: _loginOnly,
+                        onChanged: (v) => setState(() => _loginOnly = v),
+                        title: const Text(
+                          'قبلاً ثبت‌نام کرده‌ام — فقط ورود با شماره',
+                        ),
+                        subtitle: const Text(
+                          'اگر فعال باشد، فقط شماره لازم است.',
+                        ),
+                      ),
 
-  bool _isAlreadyRegisteredError(WooApiException error) {
-    final message = error.message.toLowerCase();
-    return (error.statusCode == 400 || error.statusCode == 409) &&
-        (message.contains('already registered') ||
-            message.contains('already exists'));
-  }
+                      const SizedBox(height: 8),
 
-  void _startCountdown() {
-    _countdownTimer?.cancel();
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (!mounted) return;
-      final remaining = _otpManager.remaining;
-      if (remaining == null || remaining == Duration.zero) {
-        setState(() {});
-        _countdownTimer?.cancel();
-      } else {
-        setState(() {});
-      }
-    });
-  }
+                      Text(
+                        _loginOnly
+                            ? 'فقط شماره موبایل خود را وارد کنید. نام از شماره تولید و برای سرور ارسال می‌شود.'
+                            : 'نام، نام‌خانوادگی و شماره موبایل خود را وارد کنید.',
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 12),
 
-  String _formatRemaining(Duration duration) {
-    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
-    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
-  }
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            if (!_loginOnly) ...[
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _firstCtrl,
+                                      decoration: const InputDecoration(
+                                        labelText: 'نام',
+                                        prefixIcon: Icon(Icons.person_outline),
+                                      ),
+                                      validator: (v) =>
+                                          (v == null || v.trim().isEmpty)
+                                          ? 'نام را وارد کنید'
+                                          : null,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _lastCtrl,
+                                      decoration: const InputDecoration(
+                                        labelText: 'نام خانوادگی',
+                                        prefixIcon: Icon(Icons.person),
+                                      ),
+                                      validator: (v) =>
+                                          (v == null || v.trim().isEmpty)
+                                          ? 'نام خانوادگی را وارد کنید'
+                                          : null,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                            ],
 
-  String _mapOtpError(OtpValidationError error) {
-    switch (error) {
-      case OtpValidationError.notRequested:
-        return 'کد تاییدی ارسال نشده است. روی «ارسال کد» بزنید.';
-      case OtpValidationError.phoneMismatch:
-        return 'شماره موبایل با شماره‌ای که کد برای آن ارسال شده متفاوت است.';
-      case OtpValidationError.expired:
-        return 'کد تایید منقضی شده است. دوباره درخواست بدهید.';
-      case OtpValidationError.codeMismatch:
-        return 'کد واردشده صحیح نیست.';
-    }
+                            TextFormField(
+                              controller: _phoneCtrl,
+                              decoration: const InputDecoration(
+                                labelText: 'شماره موبایل',
+                                hintText: '0912xxxxxxx یا +98912xxxxxxx',
+                                prefixIcon: Icon(Icons.phone_iphone),
+                              ),
+                              keyboardType: TextInputType.phone,
+                              validator: (v) {
+                                if (v == null || v.trim().isEmpty) {
+                                  return 'شماره موبایل الزامی است';
+                                }
+                                try {
+                                  SmsConfig.normalizePhoneToPlus98(v);
+                                  return null;
+                                } catch (_) {
+                                  return 'شماره موبایل معتبر نیست';
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 12),
+
+                      FilledButton.icon(
+                        onPressed: _sending ? null : _send,
+                        icon: _sending
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.sms_outlined),
+                        label: Text(_sent ? 'ارسال مجدد کد' : 'ارسال کد'),
+                      ),
+
+                      if (_sent) ...[
+                        const SizedBox(height: 12),
+                        Form(
+                          key: _otpKey,
+                          child: TextFormField(
+                            controller: _otpCtrl,
+                            decoration: const InputDecoration(
+                              labelText: 'کد تایید ۶ رقمی',
+                              prefixIcon: Icon(Icons.verified),
+                            ),
+                            keyboardType: TextInputType.number,
+                            validator: (v) =>
+                                (v == null || v.trim().length != 6)
+                                ? 'کد ۶ رقمی را وارد کنید'
+                                : null,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (remain != null)
+                          Text(
+                            remain == Duration.zero
+                                ? 'کد منقضی شده — دوباره ارسال کنید.'
+                                : 'زمان باقی‌مانده: '
+                                      '${remain.inMinutes.remainder(60).toString().padLeft(2, '0')}:'
+                                      '${remain.inSeconds.remainder(60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: remain == Duration.zero
+                                  ? Colors.red
+                                  : Colors.grey[700],
+                            ),
+                          ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              FilledButton(
+                onPressed: _registering ? null : _register,
+                child: _registering
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('تکمیل ثبت‌نام / ورود'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

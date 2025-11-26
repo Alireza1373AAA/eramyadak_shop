@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color brandYellow = Color(0xFFFFD200);
+  static const Color brandYellow = Color.fromARGB(255, 255, 115, 0);
   static const Color brandBlack = Color(0xFF121212);
   static const Color brandGray = Color(0xFFF4F5F7);
 

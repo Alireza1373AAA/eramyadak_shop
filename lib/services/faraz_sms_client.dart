@@ -1,168 +1,103 @@
+// lib/services/faraz_sms_client.dart
 import 'dart:convert';
-
+import 'dart:typed_data';
 import 'package:http/http.dart' as http;
+import 'package:eramyadak_shop/config.dart';
+import 'package:eramyadak_shop/services/sms_exception.dart';
 
-import '../config.dart';
-import 'sms_exception.dart';
-
-/// پاسخ برگشتی از وب‌سرویس «فراز اس‌ام‌اس».
-class FarazSmsResponse {
-  FarazSmsResponse({
-    required this.type,
-    required this.message,
-    this.code,
-    List<int>? messageIds,
-  }) : messageIds = messageIds ?? const [];
-
-  /// مقدار فیلد `type` در پاسخ که معمولاً "success" یا "error" است.
-  final String type;
-
-  /// متن پیام برگشتی از سرویس.
-  final String message;
-
-  /// کد خطای احتمالی در پاسخ.
-  final int? code;
-
-  /// شناسه‌های پیامک استخراج شده از پاسخ.
-  final List<int> messageIds;
-
-  /// مشخص می‌کند که پاسخ موفقیت‌آمیز بوده است یا خیر.
-  bool get isSuccess => type.toLowerCase() == 'success';
-
-  /// ساخت نمونه از روی نگاشت JSON.
-  factory FarazSmsResponse.fromJson(Map<String, dynamic> json) {
-    final type = json['type']?.toString() ?? 'error';
-    final message = json['message']?.toString() ?? '';
-    final codeValue = json['code'];
-    final code = codeValue is num ? codeValue.toInt() : null;
-
-    final ids = <int>{};
-
-    void addDynamicIds(dynamic value) {
-      if (value is List) {
-        for (final item in value) {
-          if (item is num) {
-            ids.add(item.toInt());
-          } else if (item is String) {
-            final parsed = int.tryParse(item);
-            if (parsed != null) {
-              ids.add(parsed);
-            }
-          }
-        }
-      } else if (value is String) {
-        final matches = RegExp(r'\d+').allMatches(value);
-        for (final match in matches) {
-          final parsed = int.tryParse(match.group(0)!);
-          if (parsed != null) {
-            ids.add(parsed);
-          }
-        }
-      }
-    }
-
-    addDynamicIds(json['ids']);
-    addDynamicIds(json['messageids']);
-    addDynamicIds(json['message_ids']);
-
-    final details = json['details'];
-    if (details is Map<String, dynamic>) {
-      addDynamicIds(details['ids']);
-      addDynamicIds(details['messageids']);
-    }
-
-    if (ids.isEmpty) {
-      final normalized = message.toLowerCase();
-      if (normalized.contains('id') || message.contains('شناسه')) {
-        addDynamicIds(message);
-      }
-    }
-
-    return FarazSmsResponse(
-      type: type,
-      message: message,
-      code: code,
-      messageIds: ids.toList(growable: false),
-    );
-  }
-}
-
-/// کلاینت ساده برای ارسال پیام از طریق درگاه «فراز اس‌ام‌اس».
 class FarazSmsClient {
   FarazSmsClient({http.Client? client}) : _client = client ?? http.Client();
-
   final http.Client _client;
 
-  Future<FarazSmsResponse> send({
-    required String username,
-    required String password,
-    required List<String> recipientNumbers,
-    required String message,
-    required String sender,
+  /// Try header formats in order. Adjust to your provider's docs.
+  List<String> _authFormats(String key) => [
+    'AccessKey $key', // common for ippanel/faraz
+    'Bearer $key',
+    key, // raw key as fallback
+  ];
+
+  Future<void> sendPattern({
+    required String recipientPlus98,
+    required String codeValue,
   }) async {
-    if (recipientNumbers.isEmpty) {
-      throw SmsException('هیچ شماره‌ای برای ارسال پیامک ارائه نشده است.');
+    final url = Uri.parse(SmsConfig.sendUrl);
+
+    // basic validation number
+    final reg = RegExp(r'^\+989\d{9}$');
+    if (!reg.hasMatch(recipientPlus98)) {
+      throw SmsException('شماره نامعتبر: $recipientPlus98');
     }
 
-    final uri = Uri.parse(SmsConfig.baseUrl);
-    late http.Response response;
-    try {
-      response = await _client.post(
-        uri,
-        headers: const {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'uname': username,
-          'pass': password,
-          'from': sender,
-          'message': message,
-          'to': recipientNumbers,
-          'op': 'send',
-        }),
-      );
-    } on http.ClientException catch (error) {
-      throw SmsException('ارتباط با سرویس پیامکی برقرار نشد: ${error.message}');
-    }
+    final bodyMap = {
+      "sending_type": "pattern",
+      "from_number": SmsConfig.sender,
+      "code": SmsConfig.patternCode,
+      "recipients": [recipientPlus98],
+      "params": {SmsConfig.patternVar: codeValue},
+    };
 
-    if (response.statusCode != 200) {
+    http.Response? res;
+    Exception? lastError;
+
+    for (final auth in _authFormats(SmsConfig.apiKey)) {
+      try {
+        res = await _client
+            .post(
+              url,
+              headers: {
+                'Content-Type': 'application/json; charset=utf-8',
+                'Authorization': auth,
+              },
+              body: utf8.encode(jsonEncode(bodyMap)),
+            )
+            .timeout(const Duration(seconds: 12));
+      } catch (e) {
+        lastError = e as Exception;
+        continue;
+      }
+
+      // اگر پاسخ 401 بود، تلاش کن با فرمت بعدی
+      if (res.statusCode == 401) {
+        lastError = SmsException(
+          'Invalid token (status 401), tried auth="$auth"',
+          statusCode: res.statusCode,
+          body: res.body,
+        );
+        continue;
+      }
+
+      // اگر 200/201 بود و body بررسی شود
+      if (res.statusCode == 200 || res.statusCode == 201) {
+        try {
+          final j = jsonDecode(res.body);
+          // اگر API یک فیلد status:false برمی‌گرداند، treat as error
+          if (j is Map && (j['status'] == false || j['success'] == false)) {
+            throw SmsException('ارسال ناموفق: ${j['message'] ?? j}');
+          }
+        } catch (e) {
+          // اگر json نشد، اما status http 200 است، قبول می‌کنیم (یا لاگ کن)
+        }
+        return; // موفق شدیم
+      }
+
+      // سایر وضعیت‌ها را به عنوان خطا برمی‌گردان
+      String msg = res.body;
+      try {
+        final j = jsonDecode(res.body);
+        msg = j['message']?.toString() ?? j['error']?.toString() ?? msg;
+      } catch (_) {}
       throw SmsException(
-        'پاسخ نامعتبر از سرویس پیامکی دریافت شد.',
-        statusCode: response.statusCode,
+        'خطا در ارسال پیامک: $msg',
+        statusCode: res.statusCode,
+        body: res.body,
       );
     }
 
-    final body = utf8.decode(response.bodyBytes).trim();
-    if (body.isEmpty) {
-      throw SmsException('پاسخ خالی از سرویس پیامکی دریافت شد.');
+    // اگر به اینجا رسیدیم یعنی همه فرمت‌های auth امتحان شدند ولی موفق نبود
+    if (lastError != null) {
+      throw SmsException('ارسال پیامک ناموفق: ${lastError.toString()}');
     }
-
-    dynamic decoded;
-    try {
-      decoded = jsonDecode(body);
-    } on FormatException {
-      throw SmsException('پاسخ نامعتبر از سرویس پیامکی دریافت شد: $body');
-    }
-
-    if (decoded is! Map<String, dynamic>) {
-      throw SmsException('ساختار پاسخ دریافتی پشتیبانی نمی‌شود: $body');
-    }
-
-    final parsed = FarazSmsResponse.fromJson(decoded);
-    if (!parsed.isSuccess) {
-      final buffer = StringBuffer('ارسال پیامک با خطا مواجه شد');
-      if (parsed.code != null) {
-        buffer.write(' (کد ${parsed.code})');
-      }
-      if (parsed.message.isNotEmpty) {
-        buffer.write(': ${parsed.message}');
-      }
-      throw SmsException(buffer.toString());
-    }
-
-    if (parsed.messageIds.isEmpty) {
-      throw SmsException('پاسخ سرویس حاوی شناسه پیامک نبود.');
-    }
-
-    return parsed;
+    throw SmsException('ارسال پیامک ناموفق (unknown reason)');
   }
 
   void close() => _client.close();

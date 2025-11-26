@@ -1,133 +1,56 @@
-// lib/data/store_config.dart
-
-/// 🎯 تنظیمات و پیکربندی اصلی اپلیکیشن Eram Yadak
-/// هر چیزی که مربوط به دامنه، مسیرها، واحد پول، پرداخت و برند است از اینجا کنترل می‌شود.
 class StoreConfig {
-  /* =======================================================================
-   * 🏪 تنظیمات پایهٔ فروشگاه
-   * ======================================================================= */
-
-  /// آدرس دامنهٔ اصلی سایت (بدون اسلش پایانی)
+  // آدرس‌ها و تنظیمات پایه
   static const String baseUrl = 'https://eramyadak.com';
-
-  /// آدرس API ووکامرس — معمولاً همان دامنه + مسیر wp-json/wc/v3
   static const String apiBase = '$baseUrl/wp-json/wc/v3';
-
-  /// آدرس ورود کاربر (برای احراز هویت در WebView)
-  static const String loginUrl = '$baseUrl/my-account/';
-
-  /// آدرس صفحهٔ سبد خرید
-  static const String cartUrl = '$baseUrl/cart/';
-
-  /// آدرس صفحهٔ تسویه‌حساب (Checkout)
-  static const String checkoutUrl = '$baseUrl/checkout/';
-
-  /// تعداد آیتم‌ها در هر صفحهٔ فهرست محصولات (پیشنهادی)
   static const int productsPageSize = 20;
-
-  /* =======================================================================
-   * 💰 تنظیمات واحد پول و نمایش قیمت
-   * ======================================================================= */
-
-  /// اگر API ووکامرس مقادیر را «ریال» می‌دهد ⇒ true
-  /// اگر «تومان» می‌دهد ⇒ false
   static const bool apiReturnsRial = true;
-
-  /// برچسب واحد نمایش در اپ
   static const String currencyLabel = 'تومان';
-
-  /// نمایش ارقام فارسی در قیمت‌ها
   static const bool showPersianDigits = true;
 
-  /* =======================================================================
-   * 🪙 تنظیمات مالی و پرداخت
-   * ======================================================================= */
+  // 🧮 توابع تبدیل و فرمت قیمت
 
-  /// حداقل مبلغ برای فعال شدن پرداخت آنلاین (بر حسب «تومان»)
-  static const int minOnlinePayment = 10000;
+  /// تبدیل مقدار خام API به تومان
+  /// ورودی می‌تواند int یا double باشد (num)، خروجی int خواهد بود.
+  static int toToman(num raw) {
+    if (!apiReturnsRial) return raw.round();
+    // اگر API مقدار را ریال می‌دهد، تبدیل به تومان (هر 10 ریال = 1 تومان)
+    return (raw / 10).round();
+  }
 
-  /// فعال بودن پرداخت با زرین‌پال
-  static const bool enableZarinpal = true;
+  /// تبدیل مقدار Nullable به تومان (اگر null، null برگردان)
+  static int? toTomanNullable(num? raw) => raw == null ? null : toToman(raw);
 
-  /// مرچنت‌کد زرین‌پال (در صورت استفادهٔ مستقیم از API)
-  static const String zarinpalMerchantId =
-      '9e9ca42a-aec4-4b39-b584-56f8b3286276';
-
-  /// آدرس بازگشت زرین‌پال (همین را در پنل زرین‌پال ثبت کن)
-  static const String zarinpalCallbackUrl =
-      '$baseUrl/zp-callback'; // حتماً مسیر واقعی خودت
-
-  /* =======================================================================
-   * 🖼️ برند و اطلاعات عمومی اپ
-   * ======================================================================= */
-
-  /// نام برند
-  static const String brandName = 'ارم یدک';
-
-  /// شعار یا توضیح کوتاه برند
-  static const String brandSlogan =
-      'فروشگاه لوازم یدکی خودرو - ارسال سریع و مطمئن';
-
-  /// لینک پشتیبانی/تماس
-  static const String supportUrl = '$baseUrl/contact-us/';
-
-  /// لینک سیاست حفظ حریم خصوصی
-  static const String privacyPolicyUrl = '$baseUrl/privacy-policy/';
-
-  /// مسیر لوگو داخل assets (برای نمایش پیش‌فرض)
-  static const String assetLogo = 'assets/logo.png';
-
-  /* =======================================================================
-   * 🔧 تنظیمات فنی (شبکه و وب‌ویو)
-   * ======================================================================= */
-
-  /// فعال کردن لاگ شبکه (فقط زمان توسعه)
-  static const bool enableNetworkLog = false;
-
-  /// تایم‌اوت درخواست‌های شبکه (ثانیه)
-  static const int networkTimeoutSeconds = 30;
-
-  /// شناسهٔ کاربر (User-Agent) سفارشی برای WebView (اختیاری)
-  static const String webViewUserAgent =
-      'EramYadakApp/1.0 (Flutter; Android/iOS)';
-
-  /// دامنه‌هایی که در WebView اجازهٔ باز شدن دارند (برای امنیت)
-  static const List<String> webViewAllowListDomains = <String>[
-    'eramyadak.com',
-    'www.eramyadak.com',
-    // درگاه‌ها و شاپرک‌ها
-    'zarinpal.com',
-    'zarinpal.ir',
-    'shaparak.ir',
-    'asan.shaparak.ir',
-    'pec.shaparak.ir',
-    'sep.shaparak.ir',
-  ];
-
-  /* =======================================================================
-   * 🧮 کمکی‌های سبک (بدون وابستگی)
-   * ======================================================================= */
-
-  /// تبدیل مقدار خام API به «تومان» (بدون فرمت)
-  static int toToman(int raw) => apiReturnsRial ? (raw / 10).round() : raw;
-
-  /// تبدیل «تومان» به «ریال» برای پرداخت
+  /// تبدیل تومان به ریال
   static int tomanToRial(int toman) => toman * 10;
 
-  /// جداکنندهٔ هزارگان ساده (بدون intl)
-  static String thousandSep(int n) => n.toString().replaceAllMapped(
-    RegExp(r'(\d)(?=(\d{3})+(?!\d))'),
-    (m) => '${m[1]},',
-  );
+  /// جداکننده هزارگان ساده، مقاوم در برابر اعداد منفی
+  static String thousandSep(int n) {
+    final isNegative = n < 0;
+    var s = (isNegative ? -n : n).toString();
+    final buffer = StringBuffer();
+    for (var i = 0; i < s.length; i++) {
+      final posFromRight = s.length - i;
+      buffer.write(s[i]);
+      if (posFromRight > 1 && posFromRight % 3 == 1) {
+        buffer.write(',');
+      }
+    }
+    final out = buffer.toString();
+    return isNegative ? '-$out' : out;
+  }
 
-  /// تبدیل ارقام انگلیسی به فارسی (در صورت نیاز)
+  /// تبدیل اعداد انگلیسی به فارسی
   static String toFaDigits(String s) {
     const fa = ['۰', '۱', '۲', '۳', '۴', '۵', '۶', '۷', '۸', '۹'];
-    return s.replaceAllMapped(RegExp(r'\d'), (m) => fa[int.parse(m[0]!)]);
+    return s.replaceAllMapped(RegExp(r'\d'), (m) {
+      final d = int.parse(m.group(0)!);
+      return fa[d];
+    });
   }
 
   /// فرمت نهایی تومان با برچسب واحد
-  static String formatTomanInt(int toman, {bool withLabel = true}) {
+  static String formatTomanInt(int? toman, {bool withLabel = true}) {
+    if (toman == null) return '';
     String out = thousandSep(toman);
     if (showPersianDigits) out = toFaDigits(out);
     return withLabel ? '$out $currencyLabel' : out;

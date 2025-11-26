@@ -1,11 +1,22 @@
-/// خطاهای مرتبط با تعامل با سرویس پیامکی.
-class SmsException implements Exception {
-  SmsException(this.message, {this.statusCode});
+// lib/services/sms_exception.dart
 
+class SmsException implements Exception {
   final String message;
   final int? statusCode;
+  final String? body;
+  final StackTrace? stackTrace;
+
+  const SmsException(
+    this.message, {
+    this.statusCode,
+    this.body,
+    this.stackTrace,
+  });
 
   @override
-  String toString() =>
-      statusCode == null ? 'SmsException: $message' : 'SmsException($statusCode): $message';
+  String toString() {
+    final codePart = statusCode != null ? ' (HTTP $statusCode)' : '';
+    final bodyPart = body != null ? '\nResponse Body: $body' : '';
+    return 'SmsException$codePart: $message$bodyPart';
+  }
 }

@@ -1,11 +1,14 @@
 // lib/pages/home_page.dart
 import 'package:flutter/material.dart';
 import '../data/woocommerce_api.dart';
+import '../data/store_api.dart' as store;
 import '../widgets/product_card.dart';
 import 'product_detail.dart';
+import 'cart_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
+
   @override
   State<HomePage> createState() => _HomePageState();
 }
@@ -13,6 +16,7 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   final api = WooApi();
   final _scroll = ScrollController();
+  final store.StoreApi _storeApi = store.StoreApi();
 
   List<Map<String, dynamic>> _items = [];
   List<Map<String, dynamic>> _cats = [];
@@ -21,12 +25,15 @@ class _HomePageState extends State<HomePage> {
   int _page = 1;
   String _search = '';
 
+  int _cartCount = 0;
+
   @override
   void initState() {
     super.initState();
     _load();
     _loadCats();
     _scroll.addListener(_maybeMore);
+    _warmupStore();
   }
 
   @override
@@ -40,6 +47,51 @@ class _HomePageState extends State<HomePage> {
     if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) {
       _load();
     }
+  }
+
+  Future<void> _warmupStore() async {
+    try {
+      await _storeApi.ensureSession();
+      await _refreshCartBadge();
+    } catch (_) {}
+  }
+
+  Future<void> _refreshCartBadge() async {
+    try {
+      final raw = await _storeApi.getCart();
+      final count = _cartItemCountFromResponse(raw);
+      if (mounted) setState(() => _cartCount = count);
+    } catch (e) {
+      if (mounted) setState(() => _cartCount = 0);
+    }
+  }
+
+  int _cartItemCountFromResponse(dynamic cart) {
+    if (cart is Map) {
+      if (cart['item_count'] is int) return cart['item_count'];
+      if (cart['items_count'] is int) return cart['items_count'];
+      if (cart['count'] is int) return cart['count'];
+
+      final lists = [
+        cart['items'],
+        cart['line_items'],
+        cart['cart_items'],
+        cart['cart_contents'],
+      ].whereType<List>();
+
+      if (lists.isNotEmpty) {
+        int sum = 0;
+        for (final it in lists.first) {
+          if (it is Map && it['quantity'] is num) {
+            sum += (it['quantity'] as num).round();
+          } else {
+            sum += 1;
+          }
+        }
+        return sum;
+      }
+    }
+    return 0;
   }
 
   Future<void> _load({bool refresh = false}) async {
@@ -67,11 +119,6 @@ class _HomePageState extends State<HomePage> {
         _page++;
         _items.addAll(data);
       }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('خطا در دریافت محصولات: $e')));
     } finally {
       if (mounted) setState(() => _loading = false);
     }
@@ -82,9 +129,7 @@ class _HomePageState extends State<HomePage> {
       final cats = await api.categories();
       if (!mounted) return;
       setState(() => _cats = cats);
-    } catch (_) {
-      // می‌تونی لاگ بگیری یا پیام نمایش بدی
-    }
+    } catch (_) {}
   }
 
   @override
@@ -102,7 +147,38 @@ class _HomePageState extends State<HomePage> {
           IconButton(
             onPressed: () => _load(refresh: true),
             icon: const Icon(Icons.refresh),
-            tooltip: 'بروزرسانی',
+          ),
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                tooltip: 'سبد خرید',
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CartPage()),
+                ).then((_) => _refreshCartBadge()),
+                icon: const Icon(Icons.shopping_cart_outlined),
+              ),
+              if (_cartCount > 0)
+                Positioned(
+                  right: 6,
+                  top: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '$_cartCount',
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
+                    ),
+                  ),
+                ),
+            ],
           ),
         ],
         bottom: PreferredSize(
@@ -124,21 +200,21 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
       body: RefreshIndicator(
-        onRefresh: () => _load(refresh: true),
+        onRefresh: () async {
+          await _load(refresh: true);
+          await _refreshCartBadge();
+        },
         child: ListView(
           controller: _scroll,
           padding: const EdgeInsets.only(bottom: 100),
           children: [
-            // --- بنر ریسپانسیو از assets (نسبت از خود تصویر خوانده می‌شود) ---
             const _ResponsiveBanner(
               assetPath: 'assets/baner/پوستر-موبایل (1).jpg',
-              // اگر هیچ برشی نمی‌خوای: fit: BoxFit.contain,
               fit: BoxFit.cover,
               borderRadius: 16,
               padding: EdgeInsets.symmetric(horizontal: 2, vertical: 2),
             ),
 
-            // --- چیپ‌های دسته‌بندی ---
             if (_cats.isNotEmpty) ...[
               const SizedBox(height: 8),
               SizedBox(
@@ -148,7 +224,7 @@ class _HomePageState extends State<HomePage> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemBuilder: (c, i) {
                     final cat = _cats[i];
-                    final catId = cat['id'] as int;
+                    final catId = cat['id'];
                     final catName = (cat['name'] ?? '').toString();
                     return ActionChip(
                       label: Text(catName),
@@ -157,26 +233,20 @@ class _HomePageState extends State<HomePage> {
                         _items.clear();
                         _page = 1;
                         _hasMore = true;
-                        setState(() {}); // رفرش سریع UI
+                        setState(() {});
 
-                        try {
-                          final v = await api.products(
-                            page: 1,
-                            per: 12,
-                            category: catId,
-                          );
-                          if (!mounted) return;
-                          setState(() {
-                            _items = List<Map<String, dynamic>>.from(v);
-                            _page = 2;
-                            _hasMore = v.isNotEmpty;
-                          });
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('خطا در دسته‌بندی: $e')),
-                          );
-                        }
+                        final v = await api.products(
+                          page: 1,
+                          per: 12,
+                          category: catId,
+                        );
+                        if (!mounted) return;
+
+                        setState(() {
+                          _items = List<Map<String, dynamic>>.from(v);
+                          _page = 2;
+                          _hasMore = v.isNotEmpty;
+                        });
                       },
                     );
                   },
@@ -187,7 +257,6 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 12),
             ],
 
-            // --- تیتر ---
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
@@ -204,19 +273,6 @@ class _HomePageState extends State<HomePage> {
                 ],
               ),
             ),
-
-            // --- گرید محصولات ---
-            if (_items.isEmpty && !_loading)
-              Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  children: const [
-                    Icon(Icons.inbox_outlined, size: 48, color: Colors.grey),
-                    SizedBox(height: 8),
-                    Text('محصولی یافت نشد'),
-                  ],
-                ),
-              ),
 
             GridView.builder(
               shrinkWrap: true,
@@ -242,6 +298,7 @@ class _HomePageState extends State<HomePage> {
                       builder: (_) => ProductDetail(product: p),
                     ),
                   ),
+                  onCartUpdated: _refreshCartBadge,
                 );
               },
             ),
@@ -252,7 +309,9 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-/// ویجت بنر ریسپانسیو: نسبت تصویر را از خود فایل می‌خواند تا دقیق فیت شود.
+// ---------------------------------------------------------
+
+/// Responsive banner widget
 class _ResponsiveBanner extends StatefulWidget {
   const _ResponsiveBanner({
     required this.assetPath,
@@ -273,27 +332,21 @@ class _ResponsiveBanner extends StatefulWidget {
 }
 
 class _ResponsiveBannerState extends State<_ResponsiveBanner> {
-  double? _aspect; // width / height
+  double? _aspect;
 
   @override
   void initState() {
     super.initState();
-
     final img = AssetImage(widget.assetPath);
     final stream = img.resolve(const ImageConfiguration());
     stream.addListener(
-      ImageStreamListener(
-        (info, _) {
-          final w = info.image.width.toDouble();
-          final h = info.image.height.toDouble();
-          if (mounted && w > 0 && h > 0) {
-            setState(() => _aspect = w / h);
-          }
-        },
-        onError: (err, _) {
-          // اختیاری: لاگ
-        },
-      ),
+      ImageStreamListener((info, _) {
+        final w = info.image.width.toDouble();
+        final h = info.image.height.toDouble();
+        if (mounted && w > 0 && h > 0) {
+          setState(() => _aspect = w / h);
+        }
+      }),
     );
   }
 
@@ -304,21 +357,19 @@ class _ResponsiveBannerState extends State<_ResponsiveBanner> {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(widget.borderRadius),
         child: _aspect == null
-            // تا وقتی ابعاد لود نشده، یک اسکلت با نسبت 16/9 نمایش بده
             ? AspectRatio(
                 aspectRatio: 16 / 9,
                 child: Container(color: widget.placeholderColor),
               )
             : LayoutBuilder(
                 builder: (context, constraints) {
-                  // ارتفاع را از عرض و نسبت واقعی تصویر حساب می‌کنیم
                   final height = constraints.maxWidth / _aspect!;
                   return SizedBox(
                     height: height,
                     width: double.infinity,
                     child: Image.asset(
                       widget.assetPath,
-                      fit: widget.fit, // cover یا contain
+                      fit: widget.fit,
                       errorBuilder: (_, __, ___) => Container(
                         color: widget.placeholderColor,
                         alignment: Alignment.center,

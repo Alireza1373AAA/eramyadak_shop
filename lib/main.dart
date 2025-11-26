@@ -11,8 +11,15 @@ import 'pages/register_page.dart';
 import 'services/auth_storage.dart';
 import 'widgets/bottom_nav.dart';
 
+// سرویس ووکامرس (nonce + cookie + web credentials)
+import 'services/woocommerce_api.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  initHttp(); // اتصال CookieManager به Dio
+  enableWebCredentialsIfNeeded(); // فعال‌سازی ارسال کوکی‌ها در وب
+
   runApp(const MyApp());
 }
 
@@ -24,23 +31,14 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Eram Yadak',
       debugShowCheckedModeBanner: false,
-
-      // 🎨 تم اپلیکیشن
       theme: AppTheme.theme(),
-
-      // 🌍 پشتیبانی از زبان فارسی و راست‌چین سراسری
       locale: const Locale('fa'),
-      supportedLocales: const [
-        Locale('fa', ''), // فارسی
-        Locale('en', ''), // انگلیسی (اختیاری)
-      ],
+      supportedLocales: const [Locale('fa', ''), Locale('en', '')],
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-
-      // 🏠 صفحه اصلی
       home: const RegistrationGate(),
     );
   }
@@ -48,14 +46,12 @@ class MyApp extends StatelessWidget {
 
 class RegistrationGate extends StatefulWidget {
   const RegistrationGate({super.key});
-
   @override
   State<RegistrationGate> createState() => _RegistrationGateState();
 }
 
 class _RegistrationGateState extends State<RegistrationGate> {
   late Future<bool> _registrationFuture;
-
   @override
   void initState() {
     super.initState();
@@ -63,9 +59,7 @@ class _RegistrationGateState extends State<RegistrationGate> {
   }
 
   void _handleRegistered() {
-    setState(() {
-      _registrationFuture = Future<bool>.value(true);
-    });
+    setState(() => _registrationFuture = Future<bool>.value(true));
   }
 
   @override
@@ -78,7 +72,6 @@ class _RegistrationGateState extends State<RegistrationGate> {
             body: Center(child: CircularProgressIndicator()),
           );
         }
-
         if (snapshot.hasError) {
           return Scaffold(
             body: Center(
@@ -87,25 +80,20 @@ class _RegistrationGateState extends State<RegistrationGate> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.redAccent),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'خطا در بررسی وضعیت ثبت‌نام',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    const Icon(
+                      Icons.error_outline,
+                      size: 48,
+                      color: Color.fromARGB(255, 255, 149, 0),
                     ),
+                    const SizedBox(height: 12),
+                    const Text('خطا در بررسی وضعیت ثبت‌نام'),
                     const SizedBox(height: 8),
-                    Text(
-                      '${snapshot.error}',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 16),
+                    Text('${snapshot.error}', textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
                     ElevatedButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _registrationFuture = AuthStorage.isRegistered();
-                        });
-                      },
+                      onPressed: () => setState(
+                        () => _registrationFuture = AuthStorage.isRegistered(),
+                      ),
                       icon: const Icon(Icons.refresh),
                       label: const Text('تلاش مجدد'),
                     ),
@@ -115,7 +103,6 @@ class _RegistrationGateState extends State<RegistrationGate> {
             ),
           );
         }
-
         final isRegistered = snapshot.data ?? false;
         if (!isRegistered) {
           return RegisterPage(
@@ -123,7 +110,6 @@ class _RegistrationGateState extends State<RegistrationGate> {
             onRegistered: _handleRegistered,
           );
         }
-
         return const Shell();
       },
     );
@@ -132,17 +118,14 @@ class _RegistrationGateState extends State<RegistrationGate> {
 
 class Shell extends StatefulWidget {
   const Shell({super.key});
-
   @override
   State<Shell> createState() => _ShellState();
 }
 
 class _ShellState extends State<Shell> {
   int idx = 1;
-
   @override
   Widget build(BuildContext context) {
-    // 📱 صفحات اپ
     final pages = <int, Widget>{
       0: const CategoriesPage(),
       1: const HomePage(),

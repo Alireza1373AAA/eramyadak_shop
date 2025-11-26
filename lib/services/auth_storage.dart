@@ -1,82 +1,97 @@
+// lib/services/auth_storage.dart
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// اطلاعات پایهٔ کاربر که پس از ثبت‌نام ذخیره می‌شود.
 class AuthProfile {
+  final String firstName;
+  final String lastName;
+  final String phone;
+
   const AuthProfile({
     required this.firstName,
     required this.lastName,
-    required this.email,
     required this.phone,
   });
 
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String phone;
-
+  /// اگر نام کاربر خالی باشد، شماره موبایل را به عنوان نام نمایش می‌دهد.
   String get displayName {
-    final parts = [firstName, lastName]
-        .map((value) => value.trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
-    if (parts.isEmpty) {
-      return 'کاربر فروشگاه';
-    }
-    return parts.join(' ');
+    final n = [
+      firstName,
+      lastName,
+    ].where((e) => e.trim().isNotEmpty).join(' ').trim();
+
+    if (n.isNotEmpty) return n;
+
+    // نمایش شماره به صورت "کاربر: 0912..."
+    if (phone.isNotEmpty) return "کاربر: $phone";
+
+    return "کاربر";
+  }
+
+  Map<String, dynamic> toJson() => {
+    'firstName': firstName,
+    'lastName': lastName,
+    'phone': phone,
+  };
+
+  factory AuthProfile.fromJson(Map<String, dynamic> j) => AuthProfile(
+    firstName: (j['firstName'] ?? '').toString(),
+    lastName: (j['lastName'] ?? '').toString(),
+    phone: (j['phone'] ?? '').toString(),
+  );
+
+  /// نسخه‌ای برای بروزرسانی پروفایل بدون نیاز به بازنویسی کامل
+  AuthProfile copyWith({String? firstName, String? lastName, String? phone}) {
+    return AuthProfile(
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      phone: phone ?? this.phone,
+    );
   }
 }
 
-/// مدیریت ذخیره‌سازی وضعیت ثبت‌نام کاربر در حافظهٔ محلی.
 class AuthStorage {
-  static const _registeredKey = 'auth.registered';
-  static const _firstNameKey = 'auth.firstName';
-  static const _lastNameKey = 'auth.lastName';
-  static const _emailKey = 'auth.email';
-  static const _phoneKey = 'auth.phone';
+  static const _kProfile = 'auth_profile_v1';
 
-  /// بررسی اینکه آیا کاربر قبلاً ثبت‌نام کرده است یا خیر.
-  static Future<bool> isRegistered() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getBool(_registeredKey) ?? false;
+  static Future<void> saveProfile(AuthProfile p) async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kProfile, jsonEncode(p.toJson()));
   }
 
-  /// ذخیرهٔ اطلاعات کاربر پس از ثبت‌نام موفق.
-  static Future<void> markRegistered({
-    required String firstName,
-    required String lastName,
-    required String email,
-    required String phone,
-  }) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_registeredKey, true);
-    await prefs.setString(_firstNameKey, firstName.trim());
-    await prefs.setString(_lastNameKey, lastName.trim());
-    await prefs.setString(_emailKey, email.trim());
-    await prefs.setString(_phoneKey, phone.trim());
-  }
-
-  /// بارگذاری اطلاعات کاربر ثبت‌نام‌شده.
   static Future<AuthProfile?> loadProfile() async {
-    final prefs = await SharedPreferences.getInstance();
-    if (!(prefs.getBool(_registeredKey) ?? false)) {
+    final sp = await SharedPreferences.getInstance();
+    final raw = sp.getString(_kProfile);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final j = jsonDecode(raw) as Map<String, dynamic>;
+      return AuthProfile.fromJson(j);
+    } catch (_) {
       return null;
     }
-
-    return AuthProfile(
-      firstName: prefs.getString(_firstNameKey) ?? '',
-      lastName: prefs.getString(_lastNameKey) ?? '',
-      email: prefs.getString(_emailKey) ?? '',
-      phone: prefs.getString(_phoneKey) ?? '',
-    );
   }
 
-  /// پاک کردن اطلاعات ذخیره‌شده (مثلاً هنگام خروج کامل).
-  static Future<void> clear() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_registeredKey);
-    await prefs.remove(_firstNameKey);
-    await prefs.remove(_lastNameKey);
-    await prefs.remove(_emailKey);
-    await prefs.remove(_phoneKey);
+  static Future<bool> isRegistered() async => (await loadProfile()) != null;
+
+  static Future<void> clearProfile() async {
+    final sp = await SharedPreferences.getInstance();
+    await sp.remove(_kProfile);
+  }
+
+  /// بروزرسانی فقط بخشی از پروفایل
+  static Future<void> updateProfile({
+    String? firstName,
+    String? lastName,
+    String? phone,
+  }) async {
+    final old = await loadProfile();
+    if (old == null) return;
+
+    final updated = old.copyWith(
+      firstName: firstName,
+      lastName: lastName,
+      phone: phone,
+    );
+
+    await saveProfile(updated);
   }
 }
