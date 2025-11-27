@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/store_api.dart' as store;
+import '../services/auth_storage.dart';
 import '../utils/price.dart';
 
 /// ======================== تنظیمات زرین‌پال ========================
@@ -630,23 +631,22 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    final result = await showModalBottomSheet<Map<String, dynamic>?>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: _ChequeForm(
-            initialEmail: _guessEmailFromCart(),
-            initialPhone: _guessPhoneFromCart(),
-          ),
-        );
-      },
-    );
+    // استفاده از اطلاعات ثبت‌شده کاربر
+    final profile = await AuthStorage.loadProfile();
+    if (profile == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً ابتدا ثبت‌نام کنید.')),
+      );
+      return;
+    }
 
-    if (result == null) return; // کاربر کنسل کرد
+    // ساخت billing از اطلاعات پروفایل
+    final billing = {
+      'first_name': profile.firstName,
+      'last_name': profile.lastName,
+      'phone': profile.phone,
+    };
 
     // ساخت payload آیتم‌ها
     final itemsPayload = <Map<String, dynamic>>[];
@@ -694,7 +694,7 @@ class _CartPageState extends State<CartPage> {
 
     try {
       final res = await api.createOrderCheque(
-        billing: result,
+        billing: billing,
         items: itemsPayload,
       );
 
