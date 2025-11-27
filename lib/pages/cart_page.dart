@@ -329,8 +329,12 @@ class _CartPageState extends State<CartPage> {
     final images = x['images'];
     if (images is List && images.isNotEmpty) {
       final first = images.first;
-      if (first is Map && first['src'] is String) imageUrl = first['src'];
-      if (first is String) imageUrl = first;
+      if (first is Map && first['src'] is String) {
+        imageUrl = first['src'];
+      }
+      if (first is String) {
+        imageUrl = first;
+      }
     } else if (x['image'] is String) {
       imageUrl = x['image'];
     }
@@ -458,24 +462,27 @@ class _CartPageState extends State<CartPage> {
             false;
       },
       onDismissed: (_) => _remove(itemKey),
-      child: Card(
-        child: ListTile(
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
-            child: imageUrl == null
-                ? const Icon(Icons.shopping_bag_outlined, size: 40)
-                : Image.network(
-                    imageUrl,
-                    width: 56,
-                    height: 56,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) =>
-                        const Icon(Icons.image_not_supported),
-                  ),
+      child: Opacity(
+        opacity: isItemLoading ? 0.6 : 1.0,
+        child: Card(
+          child: ListTile(
+            leading: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: imageUrl == null
+                  ? const Icon(Icons.shopping_bag_outlined, size: 40)
+                  : Image.network(
+                      imageUrl,
+                      width: 56,
+                      height: 56,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          const Icon(Icons.image_not_supported),
+                    ),
+            ),
+            title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
+            subtitle: subtitleWidget(),
+            trailing: buildQuantityControls(),
           ),
-          title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
-          subtitle: subtitleWidget(),
-          trailing: buildQuantityControls(),
         ),
       ),
     );
