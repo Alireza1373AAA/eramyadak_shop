@@ -491,12 +491,6 @@ class _CartPageState extends State<CartPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _openWebsiteCheckout,
-            icon: const Icon(Icons.web),
-            label: const Text('تسویه حساب در وب‌سایت'),
-          ),
         ],
       ),
     );
@@ -755,15 +749,6 @@ class _CartPageState extends State<CartPage> {
       }
     } catch (_) {}
     return null;
-  }
-
-  void _openWebsiteCheckout() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CheckoutWebView(initialCookie: api.cookieString),
-      ),
-    );
   }
 }
 
@@ -1033,86 +1018,6 @@ class _ZarinpalWebViewPageState extends State<ZarinpalWebViewPage> {
                 }
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _controller.reload(),
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(2),
-            child: _progress > 0
-                ? LinearProgressIndicator(value: _progress)
-                : const SizedBox.shrink(),
-          ),
-        ),
-        body: WebViewWidget(controller: _controller),
-      ),
-    );
-  }
-}
-
-/// ======================== Checkout وب‌سایت ========================
-class CheckoutWebView extends StatefulWidget {
-  const CheckoutWebView({super.key, required this.initialCookie});
-  final String initialCookie;
-
-  @override
-  State<CheckoutWebView> createState() => _CheckoutWebViewState();
-}
-
-class _CheckoutWebViewState extends State<CheckoutWebView> {
-  late final WebViewController _controller;
-  double _progress = 0.0;
-  static const String checkoutPath = '/checkout/';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (p) => setState(() => _progress = p / 100.0),
-          onPageFinished: (_) => setState(() => _progress = 0),
-          onNavigationRequest: (req) {
-            if (!req.isMainFrame) {
-              _controller.loadRequest(Uri.parse(req.url));
-              return NavigationDecision.prevent;
-            }
-            if (req.url.startsWith(store.StoreConfig.baseUrl))
-              return NavigationDecision.navigate;
-            if (req.url.startsWith('http://') || req.url.startsWith('https://'))
-              return NavigationDecision.navigate;
-            return NavigationDecision.prevent;
-          },
-          onWebResourceError: (err) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('WebView Error: ${err.description}')),
-            );
-          },
-        ),
-      );
-
-    final checkoutUrl = Uri.parse('${store.StoreConfig.baseUrl}$checkoutPath');
-    if (widget.initialCookie.isNotEmpty) {
-      _controller.loadRequest(
-        checkoutUrl,
-        headers: {'Cookie': widget.initialCookie},
-      );
-    } else {
-      _controller.loadRequest(checkoutUrl);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('تسویه حساب'),
-          actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () => _controller.reload(),
