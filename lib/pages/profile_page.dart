@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:eramyadak_shop/services/auth_storage.dart';
 import 'package:eramyadak_shop/widgets/account_webview.dart';
+import 'package:eramyadak_shop/data/woocommerce_api.dart';
 import 'package:eramyadak_shop/main.dart'; // برای RegistrationGate
 
 class ProfilePage extends StatefulWidget {
@@ -12,6 +13,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   late Future<AuthProfile?> _f;
+  final WooApi _wooApi = WooApi();
 
   @override
   void initState() {
@@ -107,15 +109,36 @@ class _ProfilePageState extends State<ProfilePage> {
     );
 
     if (result == true) {
+      // ذخیره در پروفایل محلی
       await AuthStorage.updateProfile(
         city: cityCtrl.text.trim(),
         address: addressCtrl.text.trim(),
         postalCode: postalCodeCtrl.text.trim(),
       );
+
+      // ذخیره در سایت (ووکامرس)
+      bool savedToServer = false;
+      try {
+        savedToServer = await _wooApi.updateCustomerAddress(
+          phone: profile.phone,
+          city: cityCtrl.text.trim(),
+          address: addressCtrl.text.trim(),
+          postalCode: postalCodeCtrl.text.trim(),
+        );
+      } catch (e) {
+        debugPrint('خطا در ذخیره آدرس در سایت: $e');
+      }
+
       _refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('آدرس با موفقیت ذخیره شد')),
+          SnackBar(
+            content: Text(
+              savedToServer
+                  ? 'آدرس با موفقیت در اپ و سایت ذخیره شد'
+                  : 'آدرس در اپ ذخیره شد (ذخیره در سایت ناموفق)',
+            ),
+          ),
         );
       }
     }
