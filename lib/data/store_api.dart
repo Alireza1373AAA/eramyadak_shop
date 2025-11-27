@@ -231,6 +231,10 @@ class StoreApi {
       if (meta != null) 'meta': meta,
     };
 
+    if (kDebugMode) {
+      debugPrint('StoreApi.createOrderCheque: payload = ${json.encode(payload)}');
+    }
+
     // اینجا کلید اختصاصی از config.dart خوانده و هدر ساخته می‌شود
     final extra = <String, String>{};
     final secret = (AppConfig.eramKey ?? '').trim();
@@ -240,6 +244,11 @@ class StoreApi {
         _postWithHeaders(uri, payload, extraHeaders: extra);
 
     var resp = await send();
+    if (kDebugMode) {
+      debugPrint('StoreApi.createOrderCheque: response.statusCode = ${resp.statusCode}');
+      debugPrint('StoreApi.createOrderCheque: response.body = ${resp.body}');
+    }
+    
     if (resp.statusCode == 401 ||
         resp.statusCode == 403 ||
         resp.body.toLowerCase().contains('rest_forbidden')) {

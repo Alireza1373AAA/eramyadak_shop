@@ -630,12 +630,15 @@ class WooApi {
       if (meta != null) 'meta': meta,
     };
 
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    final secret = (AppConfig.eramKey ?? '').trim();
+    if (secret.isNotEmpty) headers['X-ERAM-KEY'] = secret;
+
     final res = await http.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-ERAM-KEY': 'YOUR_SHARED_SECRET_HERE',
-      },
+      headers: headers,
       body: jsonEncode(payload),
     );
 
