@@ -625,7 +625,7 @@ class WooApi {
     final url = Uri.parse('$_base/wp-json/eram/v1/create-order-cheque');
     final payload = {
       'billing': billing,
-      'items': items,
+      'line_items': items,
       if (shipping != null) 'shipping': shipping,
       if (meta != null) 'meta': meta,
     };

@@ -226,7 +226,7 @@ class StoreApi {
     final uri = _u('/wp-json/eram/v1/create-order-cheque');
     final payload = {
       if (billing != null) 'billing': billing,
-      if (items != null) 'items': items,
+      if (items != null) 'line_items': items,
       if (shipping != null) 'shipping': shipping,
       if (meta != null) 'meta': meta,
     };
