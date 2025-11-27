@@ -6,11 +6,17 @@ class AuthProfile {
   final String firstName;
   final String lastName;
   final String phone;
+  final String address;
+  final String city;
+  final String postalCode;
 
   const AuthProfile({
     required this.firstName,
     required this.lastName,
     required this.phone,
+    this.address = '',
+    this.city = '',
+    this.postalCode = '',
   });
 
   /// اگر نام کاربر خالی باشد، شماره موبایل را به عنوان نام نمایش می‌دهد.
@@ -28,24 +34,48 @@ class AuthProfile {
     return "کاربر";
   }
 
+  /// آدرس کامل
+  String get fullAddress {
+    final parts = [city, address, postalCode]
+        .where((e) => e.trim().isNotEmpty)
+        .toList();
+    return parts.join('، ');
+  }
+
   Map<String, dynamic> toJson() => {
     'firstName': firstName,
     'lastName': lastName,
     'phone': phone,
+    'address': address,
+    'city': city,
+    'postalCode': postalCode,
   };
 
   factory AuthProfile.fromJson(Map<String, dynamic> j) => AuthProfile(
     firstName: (j['firstName'] ?? '').toString(),
     lastName: (j['lastName'] ?? '').toString(),
     phone: (j['phone'] ?? '').toString(),
+    address: (j['address'] ?? '').toString(),
+    city: (j['city'] ?? '').toString(),
+    postalCode: (j['postalCode'] ?? '').toString(),
   );
 
   /// نسخه‌ای برای بروزرسانی پروفایل بدون نیاز به بازنویسی کامل
-  AuthProfile copyWith({String? firstName, String? lastName, String? phone}) {
+  AuthProfile copyWith({
+    String? firstName,
+    String? lastName,
+    String? phone,
+    String? address,
+    String? city,
+    String? postalCode,
+  }) {
     return AuthProfile(
       firstName: firstName ?? this.firstName,
       lastName: lastName ?? this.lastName,
       phone: phone ?? this.phone,
+      address: address ?? this.address,
+      city: city ?? this.city,
+      postalCode: postalCode ?? this.postalCode,
     );
   }
 }
@@ -82,6 +112,9 @@ class AuthStorage {
     String? firstName,
     String? lastName,
     String? phone,
+    String? address,
+    String? city,
+    String? postalCode,
   }) async {
     final old = await loadProfile();
     if (old == null) return;
@@ -90,6 +123,9 @@ class AuthStorage {
       firstName: firstName,
       lastName: lastName,
       phone: phone,
+      address: address,
+      city: city,
+      postalCode: postalCode,
     );
 
     await saveProfile(updated);

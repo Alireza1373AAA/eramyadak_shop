@@ -646,6 +646,9 @@ class _CartPageState extends State<CartPage> {
       'first_name': profile.firstName,
       'last_name': profile.lastName,
       'phone': profile.phone,
+      'address_1': profile.address,
+      'city': profile.city,
+      'postcode': profile.postalCode,
     };
 
     // ساخت payload آیتم‌ها
