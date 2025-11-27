@@ -646,4 +646,75 @@ class WooApi {
       statusCode: res.statusCode,
     );
   }
+
+  /// بروزرسانی آدرس مشتری در ووکامرس
+  Future<bool> updateCustomerAddress({
+    required String phone,
+    required String city,
+    required String address,
+    required String postalCode,
+  }) async {
+    // پیدا کردن مشتری با شماره تلفن
+    final cleaned = phone.replaceAll('+', '').trim();
+    final email = '$cleaned@eramyadak.com';
+
+    try {
+      // جستجوی مشتری
+      final uriSearch = _wooV3('customers', {'per_page': 1, 'email': email});
+      final searchRes = await http.get(
+        uriSearch,
+        headers: {'Authorization': _authHeader},
+      );
+
+      if (searchRes.statusCode != 200) {
+        throw WooApiException('خطا در جستجوی مشتری', statusCode: searchRes.statusCode);
+      }
+
+      final customers = jsonDecode(searchRes.body);
+      if (customers is! List || customers.isEmpty) {
+        // مشتری پیدا نشد
+        return false;
+      }
+
+      final customerId = customers.first['id'];
+
+      // بروزرسانی آدرس
+      final updateUri = _wooV3('customers/$customerId');
+      final body = {
+        'billing': {
+          'city': city,
+          'address_1': address,
+          'postcode': postalCode,
+          'country': 'IR',
+        },
+        'shipping': {
+          'city': city,
+          'address_1': address,
+          'postcode': postalCode,
+          'country': 'IR',
+        },
+      };
+
+      final updateRes = await http.put(
+        updateUri,
+        headers: {
+          'Authorization': _authHeader,
+          'Content-Type': 'application/json; charset=utf-8',
+        },
+        body: jsonEncode(body),
+      );
+
+      if (updateRes.statusCode == 200) {
+        return true;
+      }
+
+      throw WooApiException(
+        'خطا در بروزرسانی آدرس: ${updateRes.body}',
+        statusCode: updateRes.statusCode,
+      );
+    } catch (e) {
+      if (e is WooApiException) rethrow;
+      throw WooApiException('خطا در بروزرسانی آدرس: $e');
+    }
+  }
 }

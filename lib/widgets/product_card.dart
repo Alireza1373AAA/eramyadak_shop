@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/store_api.dart' as store;
 import '../utils/price.dart';
 
-class ProductCard extends StatelessWidget {
+class ProductCard extends StatefulWidget {
   final Map<String, dynamic> p;
   final VoidCallback? onTap;
   final Future<void> Function()? onCartUpdated;
@@ -14,6 +14,15 @@ class ProductCard extends StatelessWidget {
     this.onTap,
     this.onCartUpdated,
   });
+
+  @override
+  State<ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends State<ProductCard> {
+  static final store.StoreApi _api = store.StoreApi();
+  int _quantity = 1;
+  bool _loading = false;
 
   int? _readUnitToman(Map<String, dynamic> item) {
     final possible = [
@@ -44,27 +53,65 @@ class ProductCard extends StatelessWidget {
     return null;
   }
 
+  Future<void> _addToCart() async {
+    final productId = widget.p['id'];
+    if (productId == null) return;
+
+    final parsedId = productId is int ? productId : int.tryParse(productId.toString());
+    if (parsedId == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('شناسه محصول نامعتبر است')),
+        );
+      }
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await _api.addToCart(
+        productId: parsedId,
+        quantity: _quantity,
+      );
+      if (widget.onCartUpdated != null) await widget.onCartUpdated!();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$_quantity عدد به سبد خرید اضافه شد')),
+        );
+        setState(() => _quantity = 1);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطا: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name =
-        (p['name'] ??
-                p['title'] ??
-                (p['product'] is Map ? p['product']['name'] : null) ??
+        (widget.p['name'] ??
+                widget.p['title'] ??
+                (widget.p['product'] is Map ? widget.p['product']['name'] : null) ??
                 '')
             .toString();
 
     String? imageUrl;
-    final images = p['images'];
+    final images = widget.p['images'];
     if (images is List && images.isNotEmpty) {
       final first = images.first;
       if (first is Map && first['src'] is String) imageUrl = first['src'];
       if (first is String) imageUrl = first;
-    } else if (p['image'] is String) {
-      imageUrl = p['image'];
+    } else if (widget.p['image'] is String) {
+      imageUrl = widget.p['image'];
     }
 
-    final unitToman = _readUnitToman(p);
-    final cartonToman = _readCartonToman(p);
+    final unitToman = _readUnitToman(widget.p);
+    final cartonToman = _readCartonToman(widget.p);
 
     Widget priceWidget() {
       final children = <Widget>[];
@@ -99,7 +146,7 @@ class ProductCard extends StatelessWidget {
       elevation: 2,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: InkWell(
-        onTap: onTap,
+        onTap: widget.onTap,
         borderRadius: BorderRadius.circular(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -133,22 +180,62 @@ class ProductCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   priceWidget(),
                   const SizedBox(height: 8),
+                  // Quantity selector row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: _quantity > 1
+                            ? () => setState(() => _quantity--)
+                            : null,
+                        icon: const Icon(Icons.remove_circle_outline),
+                        iconSize: 28,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: const Color(0xFF1A237E), // سورمه‌ای
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '$_quantity',
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => setState(() => _quantity++),
+                        icon: const Icon(Icons.add_circle_outline),
+                        iconSize: 28,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        color: const Color(0xFF1A237E), // سورمه‌ای
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // Add to cart button
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: () async {
-                            if (onCartUpdated != null) await onCartUpdated!();
-                          },
+                          onPressed: _loading ? null : _addToCart,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color.fromARGB(
-                              255,
-                              12,
-                              12,
-                              12,
-                            ),
+                            backgroundColor: const Color(0xFF1A237E), // سورمه‌ای
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 10),
                           ),
-                          child: const Text('افزودن به سبد'),
+                          child: _loading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Text('افزودن به سبد'),
                         ),
                       ),
                     ],

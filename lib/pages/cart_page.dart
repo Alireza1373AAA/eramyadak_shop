@@ -6,6 +6,7 @@ import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
 
 import '../data/store_api.dart' as store;
+import '../services/auth_storage.dart';
 import '../utils/price.dart';
 
 /// ======================== تنظیمات زرین‌پال ========================
@@ -491,12 +492,6 @@ class _CartPageState extends State<CartPage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          TextButton.icon(
-            onPressed: _openWebsiteCheckout,
-            icon: const Icon(Icons.web),
-            label: const Text('تسویه حساب در وب‌سایت'),
-          ),
         ],
       ),
     );
@@ -636,23 +631,25 @@ class _CartPageState extends State<CartPage> {
       return;
     }
 
-    final result = await showModalBottomSheet<Map<String, dynamic>?>(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) {
-        return Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom,
-          ),
-          child: _ChequeForm(
-            initialEmail: _guessEmailFromCart(),
-            initialPhone: _guessPhoneFromCart(),
-          ),
-        );
-      },
-    );
+    // استفاده از اطلاعات ثبت‌شده کاربر
+    final profile = await AuthStorage.loadProfile();
+    if (profile == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لطفاً ابتدا ثبت‌نام کنید.')),
+      );
+      return;
+    }
 
-    if (result == null) return; // کاربر کنسل کرد
+    // ساخت billing از اطلاعات پروفایل
+    final billing = {
+      'first_name': profile.firstName,
+      'last_name': profile.lastName,
+      'phone': profile.phone,
+      'address_1': profile.address,
+      'city': profile.city,
+      'postcode': profile.postalCode,
+    };
 
     // ساخت payload آیتم‌ها
     final itemsPayload = <Map<String, dynamic>>[];
@@ -665,6 +662,12 @@ class _CartPageState extends State<CartPage> {
             map['product_id'] ?? map['id'] ?? map['product']?['id'];
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
         final variationId = map['variation_id'] ?? map['variation']?['id'];
+        final productName =
+            (map['name'] ??
+                    map['product_name'] ??
+                    (map['product'] is Map ? map['product']['name'] : null) ??
+                    '')
+                .toString();
 
         if (productId == null) continue;
 
@@ -673,6 +676,7 @@ class _CartPageState extends State<CartPage> {
               ? productId
               : int.tryParse(productId.toString()) ?? 0,
           'quantity': quantity.round(),
+          'name': productName,
         };
         if (variationId != null)
           it['variation_id'] = (variationId is int)
@@ -693,7 +697,7 @@ class _CartPageState extends State<CartPage> {
 
     try {
       final res = await api.createOrderCheque(
-        billing: result,
+        billing: billing,
         items: itemsPayload,
       );
 
@@ -755,15 +759,6 @@ class _CartPageState extends State<CartPage> {
       }
     } catch (_) {}
     return null;
-  }
-
-  void _openWebsiteCheckout() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CheckoutWebView(initialCookie: api.cookieString),
-      ),
-    );
   }
 }
 
@@ -1033,86 +1028,6 @@ class _ZarinpalWebViewPageState extends State<ZarinpalWebViewPage> {
                 }
               },
             ),
-            IconButton(
-              icon: const Icon(Icons.refresh),
-              onPressed: () => _controller.reload(),
-            ),
-          ],
-          bottom: PreferredSize(
-            preferredSize: const Size.fromHeight(2),
-            child: _progress > 0
-                ? LinearProgressIndicator(value: _progress)
-                : const SizedBox.shrink(),
-          ),
-        ),
-        body: WebViewWidget(controller: _controller),
-      ),
-    );
-  }
-}
-
-/// ======================== Checkout وب‌سایت ========================
-class CheckoutWebView extends StatefulWidget {
-  const CheckoutWebView({super.key, required this.initialCookie});
-  final String initialCookie;
-
-  @override
-  State<CheckoutWebView> createState() => _CheckoutWebViewState();
-}
-
-class _CheckoutWebViewState extends State<CheckoutWebView> {
-  late final WebViewController _controller;
-  double _progress = 0.0;
-  static const String checkoutPath = '/checkout/';
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(Colors.white)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (p) => setState(() => _progress = p / 100.0),
-          onPageFinished: (_) => setState(() => _progress = 0),
-          onNavigationRequest: (req) {
-            if (!req.isMainFrame) {
-              _controller.loadRequest(Uri.parse(req.url));
-              return NavigationDecision.prevent;
-            }
-            if (req.url.startsWith(store.StoreConfig.baseUrl))
-              return NavigationDecision.navigate;
-            if (req.url.startsWith('http://') || req.url.startsWith('https://'))
-              return NavigationDecision.navigate;
-            return NavigationDecision.prevent;
-          },
-          onWebResourceError: (err) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('WebView Error: ${err.description}')),
-            );
-          },
-        ),
-      );
-
-    final checkoutUrl = Uri.parse('${store.StoreConfig.baseUrl}$checkoutPath');
-    if (widget.initialCookie.isNotEmpty) {
-      _controller.loadRequest(
-        checkoutUrl,
-        headers: {'Cookie': widget.initialCookie},
-      );
-    } else {
-      _controller.loadRequest(checkoutUrl);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Directionality(
-      textDirection: ui.TextDirection.rtl,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('تسویه حساب'),
-          actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () => _controller.reload(),
