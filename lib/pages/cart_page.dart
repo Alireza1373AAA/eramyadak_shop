@@ -111,6 +111,9 @@ class _CartPageState extends State<CartPage> {
   bool _loading = true;
   String? _error;
   Map<String, dynamic>? _cart;
+  
+  /// نگهداری وضعیت لودینگ برای هر آیتم (کلید آیتم -> آیا در حال بارگذاری است)
+  final Map<String, bool> _itemLoading = {};
 
   @override
   void initState() {
@@ -136,6 +139,7 @@ class _CartPageState extends State<CartPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _itemLoading.clear(); // پاکسازی وضعیت لودینگ آیتم‌ها
     });
     try {
       final c = await api.getCart();
@@ -317,6 +321,9 @@ class _CartPageState extends State<CartPage> {
                 '')
             .toString();
     final qty = ((x['quantity'] ?? x['qty'] ?? 1) as num).round();
+    
+    // بررسی وضعیت لودینگ برای این آیتم
+    final isItemLoading = _itemLoading[itemKey] == true;
 
     String? imageUrl;
     final images = x['images'];
@@ -324,8 +331,9 @@ class _CartPageState extends State<CartPage> {
       final first = images.first;
       if (first is Map && first['src'] is String) imageUrl = first['src'];
       if (first is String) imageUrl = first;
-    } else if (x['image'] is String)
+    } else if (x['image'] is String) {
       imageUrl = x['image'];
+    }
 
     final lineRaw =
         x['totals']?['line_total'] ??
@@ -340,20 +348,22 @@ class _CartPageState extends State<CartPage> {
 
     Widget subtitleWidget() {
       final children = <Widget>[];
-      if (unitToman != null)
+      if (unitToman != null) {
         children.add(
           Text(
             'قیمت تکی: ${Price.formatToman(unitToman)}',
             style: const TextStyle(color: Colors.grey),
           ),
         );
-      if (cartonToman != null)
+      }
+      if (cartonToman != null) {
         children.add(
           Text(
             'قیمت کارتن: ${Price.formatToman(cartonToman)}',
             style: const TextStyle(color: Colors.grey),
           ),
         );
+      }
       children.add(
         Text(
           Price.formatToman(lineToman),
@@ -366,9 +376,61 @@ class _CartPageState extends State<CartPage> {
       );
     }
 
+    // ویجت کنترل تعداد با پشتیبانی از لودینگ
+    Widget buildQuantityControls() {
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // دکمه کاهش: غیرفعال وقتی qty=1 یا در حال لود
+          IconButton(
+            icon: isItemLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.remove_circle_outline),
+            onPressed: (isItemLoading || qty <= 1)
+                ? null
+                : () => _updateQty(itemKey, qty - 1),
+            tooltip: 'کاهش تعداد',
+          ),
+          // نمایش تعداد
+          Container(
+            constraints: const BoxConstraints(minWidth: 24),
+            alignment: Alignment.center,
+            child: Text(
+              '$qty',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          // دکمه افزایش: غیرفعال وقتی در حال لود
+          IconButton(
+            icon: isItemLoading
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add_circle_outline),
+            onPressed: isItemLoading
+                ? null
+                : () => _updateQty(itemKey, qty + 1),
+            tooltip: 'افزایش تعداد',
+          ),
+          // دکمه حذف
+          IconButton(
+            icon: const Icon(Icons.delete_outline),
+            onPressed: isItemLoading ? null : () => _remove(itemKey),
+            tooltip: 'حذف از سبد',
+          ),
+        ],
+      );
+    }
+
     return Dismissible(
       key: ValueKey(itemKey.isNotEmpty ? itemKey : i),
-      direction: DismissDirection.endToStart,
+      direction: isItemLoading ? DismissDirection.none : DismissDirection.endToStart,
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -413,24 +475,7 @@ class _CartPageState extends State<CartPage> {
           ),
           title: Text(name, maxLines: 2, overflow: TextOverflow.ellipsis),
           subtitle: subtitleWidget(),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
-                onPressed: qty > 1 ? () => _updateQty(itemKey, qty - 1) : null,
-              ),
-              Text('$qty'),
-              IconButton(
-                icon: const Icon(Icons.add_circle_outline),
-                onPressed: () => _updateQty(itemKey, qty + 1),
-              ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline),
-                onPressed: () => _remove(itemKey),
-              ),
-            ],
-          ),
+          trailing: buildQuantityControls(),
         ),
       ),
     );
@@ -524,31 +569,94 @@ class _CartPageState extends State<CartPage> {
 
   Future<void> _updateQty(String key, int qty) async {
     if (!mounted) return;
-    setState(() => _loading = true);
+    // بجای لود کلی صفحه، فقط وضعیت آیتم را تغییر می‌دهیم
+    setState(() => _itemLoading[key] = true);
     try {
       await api.updateItemQty(itemKey: key, quantity: qty);
-      await _loadCart();
+      // پس از موفقیت، سبد را رفرش می‌کنیم تا مقادیر به روز شوند
+      await _loadCartSilent();
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _error = e.toString();
-        _loading = false;
-      });
+      setState(() => _itemLoading[key] = false);
+      // نمایش پیغام خطای مناسب
+      _showErrorSnackBar('خطا در به‌روزرسانی تعداد: $e');
     }
   }
 
   Future<void> _remove(String key) async {
     if (!mounted) return;
-    setState(() => _loading = true);
+    setState(() => _itemLoading[key] = true);
     try {
       await api.removeItem(itemKey: key);
-      await _loadCart();
+      // پس از موفقیت، سبد را رفرش می‌کنیم
+      await _loadCartSilent();
     } catch (e) {
       if (!mounted) return;
+      setState(() => _itemLoading[key] = false);
+      _showErrorSnackBar('خطا در حذف آیتم: $e');
+    }
+  }
+
+  /// بارگیری سبد بدون نمایش لودینگ کلی صفحه
+  Future<void> _loadCartSilent() async {
+    if (!mounted) return;
+    try {
+      final c = await api.getCart();
+      if (!mounted) return;
       setState(() {
-        _error = e.toString();
-        _loading = false;
+        _cart = c;
+        _itemLoading.clear(); // پاکسازی وضعیت لودینگ آیتم‌ها
       });
+    } catch (e) {
+      if (!mounted) return;
+      _showErrorSnackBar('خطا در بارگیری سبد: $e');
+    }
+  }
+
+  /// نمایش پیغام خطا با Snackbar
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Colors.red.shade700,
+        duration: const Duration(seconds: 4),
+        action: SnackBarAction(
+          label: 'تلاش مجدد',
+          textColor: Colors.white,
+          onPressed: _loadCart,
+        ),
+      ),
+    );
+  }
+
+  /// افزودن محصول به سبد خرید
+  Future<void> _addToCart({
+    required int productId,
+    int quantity = 1,
+    int? variationId,
+  }) async {
+    if (!mounted) return;
+    setState(() => _loading = true);
+    try {
+      await api.addToCart(
+        productId: productId,
+        quantity: quantity,
+        variationId: variationId,
+      );
+      await _loadCart();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('محصول به سبد خرید اضافه شد'),
+          backgroundColor: Colors.green.shade700,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _loading = false);
+      _showErrorSnackBar('خطا در افزودن به سبد: $e');
     }
   }
 
