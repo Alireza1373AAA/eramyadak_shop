@@ -659,6 +659,12 @@ class _CartPageState extends State<CartPage> {
             map['product_id'] ?? map['id'] ?? map['product']?['id'];
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
         final variationId = map['variation_id'] ?? map['variation']?['id'];
+        final productName =
+            (map['name'] ??
+                    map['product_name'] ??
+                    (map['product'] is Map ? map['product']['name'] : null) ??
+                    '')
+                .toString();
 
         if (productId == null) continue;
 
@@ -667,6 +673,7 @@ class _CartPageState extends State<CartPage> {
               ? productId
               : int.tryParse(productId.toString()) ?? 0,
           'quantity': quantity.round(),
+          'name': productName,
         };
         if (variationId != null)
           it['variation_id'] = (variationId is int)
