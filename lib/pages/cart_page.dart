@@ -659,16 +659,26 @@ class _CartPageState extends State<CartPage> {
         final map = (raw is Map<String, dynamic>)
             ? raw
             : Map<String, dynamic>.from(raw as Map);
+        
+        // استخراج product_id از فیلدهای مختلف ممکن
         final productId =
             map['product_id'] ?? map['id'] ?? map['product']?['id'];
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
         final variationId = map['variation_id'] ?? map['variation']?['id'];
+        
+        // استخراج نام محصول از فیلدهای مختلف ممکن
         final productName =
             (map['name'] ??
                     map['product_name'] ??
                     (map['product'] is Map ? map['product']['name'] : null) ??
                     '')
                 .toString();
+        
+        // استخراج قیمت از فیلدهای مختلف ممکن
+        final price = map['prices']?['price'] ?? 
+                      map['price'] ?? 
+                      map['totals']?['line_total'] ??
+                      map['line_total'];
 
         if (productId == null) continue;
 
@@ -678,20 +688,30 @@ class _CartPageState extends State<CartPage> {
               : int.tryParse(productId.toString()) ?? 0,
           'quantity': quantity.round(),
         };
-        if (variationId != null)
+        if (variationId != null) {
           it['variation_id'] = (variationId is int)
               ? variationId
               : int.tryParse(variationId.toString());
+        }
         if (productName.isNotEmpty) it['name'] = productName;
+        if (price != null) it['price'] = price.toString();
+        
         itemsPayload.add(it);
-      } catch (_) {
-        // ignore broken item
+        
+        if (kDebugMode) {
+          debugPrint('CartPage: item raw = ${jsonEncode(map)}');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('CartPage: error parsing item: $e');
+        }
       }
     }
 
     if (kDebugMode) {
       debugPrint('CartPage: itemsPayload = ${jsonEncode(itemsPayload)}');
       debugPrint('CartPage: billing = ${jsonEncode(billing)}');
+      debugPrint('CartPage: totalToman = $_totalToman');
     }
 
     // loader
@@ -705,6 +725,7 @@ class _CartPageState extends State<CartPage> {
       final res = await api.createOrderCheque(
         billing: billing,
         items: itemsPayload,
+        total: (_totalToman * 10).toString(), // ارسال مبلغ کل به ریال
       );
 
       if (!mounted) return;
