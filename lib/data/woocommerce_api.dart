@@ -625,17 +625,20 @@ class WooApi {
     final url = Uri.parse('$_base/wp-json/eram/v1/create-order-cheque');
     final payload = {
       'billing': billing,
-      'items': items,
+      'line_items': items,
       if (shipping != null) 'shipping': shipping,
       if (meta != null) 'meta': meta,
     };
 
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+    };
+    final secret = (AppConfig.eramKey ?? '').trim();
+    if (secret.isNotEmpty) headers['X-ERAM-KEY'] = secret;
+
     final res = await http.post(
       url,
-      headers: {
-        'Content-Type': 'application/json',
-        'X-ERAM-KEY': 'YOUR_SHARED_SECRET_HERE',
-      },
+      headers: headers,
       body: jsonEncode(payload),
     );
 

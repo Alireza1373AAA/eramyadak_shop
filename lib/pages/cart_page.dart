@@ -1,6 +1,7 @@
 // lib/pages/cart_page.dart
 import 'dart:convert';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:http/http.dart' as http;
@@ -662,12 +663,6 @@ class _CartPageState extends State<CartPage> {
             map['product_id'] ?? map['id'] ?? map['product']?['id'];
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
         final variationId = map['variation_id'] ?? map['variation']?['id'];
-        final productName =
-            (map['name'] ??
-                    map['product_name'] ??
-                    (map['product'] is Map ? map['product']['name'] : null) ??
-                    '')
-                .toString();
 
         if (productId == null) continue;
 
@@ -682,10 +677,16 @@ class _CartPageState extends State<CartPage> {
           it['variation_id'] = (variationId is int)
               ? variationId
               : int.tryParse(variationId.toString());
+        if (name != null) it['name'] = name.toString();
         itemsPayload.add(it);
       } catch (_) {
         // ignore broken item
       }
+    }
+
+    if (kDebugMode) {
+      debugPrint('CartPage: itemsPayload = ${jsonEncode(itemsPayload)}');
+      debugPrint('CartPage: billing = ${jsonEncode(result)}');
     }
 
     // loader

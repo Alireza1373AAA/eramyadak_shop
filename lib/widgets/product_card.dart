@@ -15,15 +15,6 @@ class ProductCard extends StatefulWidget {
     this.onCartUpdated,
   });
 
-  @override
-  State<ProductCard> createState() => _ProductCardState();
-}
-
-class _ProductCardState extends State<ProductCard> {
-  static final store.StoreApi _api = store.StoreApi();
-  int _quantity = 1;
-  bool _loading = false;
-
   int? _readUnitToman(Map<String, dynamic> item) {
     final possible = [
       item['unit_price'],
@@ -51,44 +42,6 @@ class _ProductCardState extends State<ProductCard> {
       if (t != null) return t;
     }
     return null;
-  }
-
-  Future<void> _addToCart() async {
-    final productId = widget.p['id'];
-    if (productId == null) return;
-
-    final parsedId = productId is int ? productId : int.tryParse(productId.toString());
-    if (parsedId == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('شناسه محصول نامعتبر است')),
-        );
-      }
-      return;
-    }
-
-    setState(() => _loading = true);
-    try {
-      await _api.addToCart(
-        productId: parsedId,
-        quantity: _quantity,
-      );
-      if (widget.onCartUpdated != null) await widget.onCartUpdated!();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$_quantity عدد به سبد خرید اضافه شد')),
-        );
-        setState(() => _quantity = 1);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
-    }
   }
 
   @override
@@ -180,62 +133,20 @@ class _ProductCardState extends State<ProductCard> {
                   const SizedBox(height: 4),
                   priceWidget(),
                   const SizedBox(height: 8),
-                  // Quantity selector row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      IconButton(
-                        onPressed: _quantity > 1
-                            ? () => setState(() => _quantity--)
-                            : null,
-                        icon: const Icon(Icons.remove_circle_outline),
-                        iconSize: 28,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        color: const Color(0xFF1A237E), // سورمه‌ای
-                      ),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: Text(
-                          '$_quantity',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                      IconButton(
-                        onPressed: () => setState(() => _quantity++),
-                        icon: const Icon(Icons.add_circle_outline),
-                        iconSize: 28,
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                        color: const Color(0xFF1A237E), // سورمه‌ای
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  // Add to cart button
                   Row(
                     children: [
                       Expanded(
                         child: ElevatedButton(
                           onPressed: _loading ? null : _addToCart,
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF1A237E), // سورمه‌ای
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            backgroundColor: const Color.fromARGB(
+                              255,
+                              12,
+                              12,
+                              12,
+                            ),
                           ),
-                          child: _loading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const Text('افزودن به سبد'),
+                          child: const Text('افزودن به سبد'),
                         ),
                       ),
                     ],
