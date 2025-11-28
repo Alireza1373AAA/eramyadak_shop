@@ -15,6 +15,14 @@ class ProductCard extends StatefulWidget {
     this.onCartUpdated,
   });
 
+  @override
+  State<ProductCard> createState() => _ProductCardState();
+}
+
+class _ProductCardState extends State<ProductCard> {
+  final store.StoreApi _api = store.StoreApi();
+  bool _loading = false;
+
   int? _readUnitToman(Map<String, dynamic> item) {
     final possible = [
       item['unit_price'],
@@ -42,6 +50,37 @@ class ProductCard extends StatefulWidget {
       if (t != null) return t;
     }
     return null;
+  }
+
+  Future<void> _addToCart() async {
+    setState(() => _loading = true);
+    try {
+      final productId = widget.p['id'];
+      if (productId == null) throw Exception('Product ID is null');
+      
+      await _api.ensureSession();
+      final id = (productId is int) ? productId : int.parse(productId.toString());
+      await _api.addToCart(productId: id, quantity: 1);
+      
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('محصول به سبد خرید اضافه شد'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      
+      if (widget.onCartUpdated != null) {
+        await widget.onCartUpdated!();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطا: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
   @override

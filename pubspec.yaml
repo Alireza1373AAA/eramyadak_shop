@@ -6,7 +6,7 @@ publish_to: "none"
 version: 1.0.0+1
 
 environment:
-  sdk: ">=3.9.0 <4.0.0"
+  sdk: ">=3.0.0 <4.0.0"
   flutter: ">=3.0.0"
 
 dependencies:
@@ -20,12 +20,12 @@ dependencies:
   http: ^1.2.2
 
   # وب‌ویو
-  webview_flutter: ^4.10.0
-  webview_flutter_android: ^4.10.5
-  webview_flutter_wkwebview: ^3.23.1
+  webview_flutter: ^4.8.0
+  webview_flutter_android: ^3.16.0
+  webview_flutter_wkwebview: ^3.13.0
 
   # ابزارها
-  intl: ^0.20.2
+  intl: ^0.19.0
   url_launcher: ^6.3.0
  
   shared_preferences: ^2.2.3

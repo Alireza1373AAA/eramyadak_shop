@@ -21,8 +21,7 @@ class AppTheme {
         centerTitle: false,
       ),
 
-      // ✅ اصلاح شد: CardThemeData به جای CardTheme
-      cardTheme: CardThemeData(
+      cardTheme: CardTheme(
         elevation: 2,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
