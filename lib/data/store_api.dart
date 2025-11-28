@@ -238,7 +238,7 @@ class StoreApi {
       'set_paid': false,
       // فیلدهای اختیاری
       if (billing != null) 'billing': billing,
-      if (items != null) 'line_items': items,
+      if (items != null) 'items': items,
       if (shipping != null) 'shipping': shipping,
       if (total != null) 'total': total,
       if (meta != null) 'meta': meta,
