@@ -654,44 +654,141 @@ class _CartPageState extends State<CartPage> {
 
     // ساخت payload آیتم‌ها
     final itemsPayload = <Map<String, dynamic>>[];
+    
+    if (kDebugMode) {
+      debugPrint('CartPage: _items length = ${_items.length}');
+      debugPrint('CartPage: _items = $_items');
+    }
+    
     for (final raw in _items) {
       try {
         final map = (raw is Map<String, dynamic>)
             ? raw
             : Map<String, dynamic>.from(raw as Map);
-        final productId =
-            map['product_id'] ?? map['id'] ?? map['product']?['id'];
-        final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
-        final variationId = map['variation_id'] ?? map['variation']?['id'];
+        
+        if (kDebugMode) {
+          debugPrint('CartPage: processing item raw keys = ${map.keys.toList()}');
+          debugPrint('CartPage: item raw = ${jsonEncode(map)}');
+        }
+        
+        // استخراج product_id از فیلدهای مختلف ممکن
+        // WooCommerce Store API: 'id' is the product_id in cart items
+        int? productId;
+        
+        // Try product_id first
+        final rawProductId = map['product_id'];
+        if (rawProductId != null) {
+          productId = (rawProductId is int) 
+              ? rawProductId 
+              : int.tryParse(rawProductId.toString());
+          if (kDebugMode) {
+            debugPrint('CartPage: found product_id = $productId');
+          }
+        }
+        
+        // Then try 'id' field (WooCommerce Store API uses this)
+        if (productId == null || productId == 0) {
+          final rawId = map['id'];
+          if (rawId != null) {
+            productId = (rawId is int) 
+                ? rawId 
+                : int.tryParse(rawId.toString());
+            if (kDebugMode) {
+              debugPrint('CartPage: found id = $productId (type: ${rawId.runtimeType})');
+            }
+          }
+        }
+        
+        // Try nested product object
+        if (productId == null || productId == 0) {
+          if (map['product'] is Map) {
+            final rawProdId = map['product']['id'];
+            if (rawProdId != null) {
+              productId = (rawProdId is int) 
+                  ? rawProdId 
+                  : int.tryParse(rawProdId.toString());
+              if (kDebugMode) {
+                debugPrint('CartPage: found product.id = $productId');
+              }
+            }
+          }
+        }
+        
+        final quantity = (map['quantity'] ?? map['qty'] ?? 1);
+        final quantityInt = (quantity is int) ? quantity : int.tryParse(quantity.toString()) ?? 1;
+        
+        // استخراج variation_id
+        int? variationId;
+        final rawVariation = map['variation_id'];
+        if (rawVariation != null && rawVariation != 0) {
+          variationId = (rawVariation is int) 
+              ? rawVariation 
+              : int.tryParse(rawVariation.toString());
+        }
+        if ((variationId == null || variationId == 0) && map['variation'] is Map) {
+          final rawVarId = map['variation']['id'];
+          if (rawVarId != null) {
+            variationId = (rawVarId is int) 
+                ? rawVarId 
+                : int.tryParse(rawVarId.toString());
+          }
+        }
+        
+        // استخراج نام محصول از فیلدهای مختلف ممکن
         final productName =
             (map['name'] ??
                     map['product_name'] ??
                     (map['product'] is Map ? map['product']['name'] : null) ??
                     '')
                 .toString();
+        
+        // استخراج قیمت از فیلدهای مختلف ممکن
+        final price = map['prices']?['price'] ?? 
+                      map['price'] ?? 
+                      map['totals']?['line_total'] ??
+                      map['line_total'];
 
-        if (productId == null) continue;
+        if (kDebugMode) {
+          debugPrint('CartPage: extracted - productId=$productId, quantity=$quantityInt, name=$productName');
+        }
+
+        if (productId == null || productId == 0) {
+          if (kDebugMode) {
+            debugPrint('CartPage: skipping item - no valid product_id found');
+          }
+          continue;
+        }
 
         final it = <String, dynamic>{
-          'product_id': (productId is int)
-              ? productId
-              : int.tryParse(productId.toString()) ?? 0,
-          'quantity': quantity.round(),
+          'product_id': productId,
+          'quantity': quantityInt,
         };
-        if (variationId != null)
-          it['variation_id'] = (variationId is int)
-              ? variationId
-              : int.tryParse(variationId.toString());
+        if (variationId != null && variationId != 0) {
+          it['variation_id'] = variationId;
+        }
         if (productName.isNotEmpty) it['name'] = productName;
+        if (price != null) it['price'] = price.toString();
+        
         itemsPayload.add(it);
-      } catch (_) {
-        // ignore broken item
+        
+        if (kDebugMode) {
+          debugPrint('CartPage: added item to payload = ${jsonEncode(it)}');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('CartPage: error parsing item: $e');
+        }
       }
+    }
+    
+    if (kDebugMode) {
+      debugPrint('CartPage: final itemsPayload = ${jsonEncode(itemsPayload)}');
     }
 
     if (kDebugMode) {
       debugPrint('CartPage: itemsPayload = ${jsonEncode(itemsPayload)}');
       debugPrint('CartPage: billing = ${jsonEncode(billing)}');
+      debugPrint('CartPage: totalToman = $_totalToman');
     }
 
     // loader
@@ -705,6 +802,7 @@ class _CartPageState extends State<CartPage> {
       final res = await api.createOrderCheque(
         billing: billing,
         items: itemsPayload,
+        total: (_totalToman * 10).toString(), // ارسال مبلغ کل به ریال
       );
 
       if (!mounted) return;

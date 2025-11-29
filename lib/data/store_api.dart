@@ -217,17 +217,30 @@ class StoreApi {
   }
 
   /// ثبت سفارش چک با مدیریت 401/403
+  ///
+  /// [billing] - اطلاعات صورت‌حساب مشتری (نام، آدرس، تلفن، ایمیل و ...)
+  /// [items] - لیست آیتم‌های سفارش (هر آیتم شامل product_id، quantity و variation_id اختیاری)
+  /// [shipping] - اطلاعات ارسال (آدرس ارسال)
+  /// [total] - مبلغ کل سفارش (اختیاری)
+  /// [meta] - متادیتای اضافی (اختیاری)
   Future<Map<String, dynamic>> createOrderCheque({
     Map<String, dynamic>? billing,
     List<Map<String, dynamic>>? items,
     Map<String, dynamic>? shipping,
+    String? total,
     Map<String, dynamic>? meta,
   }) async {
     final uri = _u('/wp-json/eram/v1/create-order-cheque');
-    final payload = {
+    final payload = <String, dynamic>{
+      // فیلدهای اجباری مربوط به روش پرداخت چک
+      'payment_method': 'cheque',
+      'payment_method_title': 'Cheque',
+      'set_paid': false,
+      // فیلدهای اختیاری
       if (billing != null) 'billing': billing,
-      if (items != null) 'line_items': items,
+      if (items != null) 'items': items,
       if (shipping != null) 'shipping': shipping,
+      if (total != null) 'total': total,
       if (meta != null) 'meta': meta,
     };
 
