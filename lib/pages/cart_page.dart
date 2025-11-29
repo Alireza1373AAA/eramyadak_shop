@@ -654,6 +654,12 @@ class _CartPageState extends State<CartPage> {
 
     // ساخت payload آیتم‌ها
     final itemsPayload = <Map<String, dynamic>>[];
+    
+    if (kDebugMode) {
+      debugPrint('CartPage: _items length = ${_items.length}');
+      debugPrint('CartPage: _items = $_items');
+    }
+    
     for (final raw in _items) {
       try {
         final map = (raw is Map<String, dynamic>)
@@ -667,34 +673,65 @@ class _CartPageState extends State<CartPage> {
         
         // استخراج product_id از فیلدهای مختلف ممکن
         // WooCommerce Store API: 'id' is the product_id in cart items
-        // But sometimes it could be in nested 'product' object
         int? productId;
-        if (map['product_id'] != null) {
-          productId = (map['product_id'] is int) 
-              ? map['product_id'] 
-              : int.tryParse(map['product_id'].toString());
-        } else if (map['id'] != null) {
-          productId = (map['id'] is int) 
-              ? map['id'] 
-              : int.tryParse(map['id'].toString());
-        } else if (map['product'] is Map && map['product']['id'] != null) {
-          productId = (map['product']['id'] is int) 
-              ? map['product']['id'] 
-              : int.tryParse(map['product']['id'].toString());
+        
+        // Try product_id first
+        final rawProductId = map['product_id'];
+        if (rawProductId != null) {
+          productId = (rawProductId is int) 
+              ? rawProductId 
+              : int.tryParse(rawProductId.toString());
+          if (kDebugMode) {
+            debugPrint('CartPage: found product_id = $productId');
+          }
         }
         
-        final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
+        // Then try 'id' field (WooCommerce Store API uses this)
+        if (productId == null || productId == 0) {
+          final rawId = map['id'];
+          if (rawId != null) {
+            productId = (rawId is int) 
+                ? rawId 
+                : int.tryParse(rawId.toString());
+            if (kDebugMode) {
+              debugPrint('CartPage: found id = $productId (type: ${rawId.runtimeType})');
+            }
+          }
+        }
+        
+        // Try nested product object
+        if (productId == null || productId == 0) {
+          if (map['product'] is Map) {
+            final rawProdId = map['product']['id'];
+            if (rawProdId != null) {
+              productId = (rawProdId is int) 
+                  ? rawProdId 
+                  : int.tryParse(rawProdId.toString());
+              if (kDebugMode) {
+                debugPrint('CartPage: found product.id = $productId');
+              }
+            }
+          }
+        }
+        
+        final quantity = (map['quantity'] ?? map['qty'] ?? 1);
+        final quantityInt = (quantity is int) ? quantity : int.tryParse(quantity.toString()) ?? 1;
         
         // استخراج variation_id
         int? variationId;
-        if (map['variation_id'] != null && map['variation_id'] != 0) {
-          variationId = (map['variation_id'] is int) 
-              ? map['variation_id'] 
-              : int.tryParse(map['variation_id'].toString());
-        } else if (map['variation'] is Map && map['variation']['id'] != null) {
-          variationId = (map['variation']['id'] is int) 
-              ? map['variation']['id'] 
-              : int.tryParse(map['variation']['id'].toString());
+        final rawVariation = map['variation_id'];
+        if (rawVariation != null && rawVariation != 0) {
+          variationId = (rawVariation is int) 
+              ? rawVariation 
+              : int.tryParse(rawVariation.toString());
+        }
+        if ((variationId == null || variationId == 0) && map['variation'] is Map) {
+          final rawVarId = map['variation']['id'];
+          if (rawVarId != null) {
+            variationId = (rawVarId is int) 
+                ? rawVarId 
+                : int.tryParse(rawVarId.toString());
+          }
         }
         
         // استخراج نام محصول از فیلدهای مختلف ممکن
@@ -711,6 +748,10 @@ class _CartPageState extends State<CartPage> {
                       map['totals']?['line_total'] ??
                       map['line_total'];
 
+        if (kDebugMode) {
+          debugPrint('CartPage: extracted - productId=$productId, quantity=$quantityInt, name=$productName');
+        }
+
         if (productId == null || productId == 0) {
           if (kDebugMode) {
             debugPrint('CartPage: skipping item - no valid product_id found');
@@ -720,7 +761,7 @@ class _CartPageState extends State<CartPage> {
 
         final it = <String, dynamic>{
           'product_id': productId,
-          'quantity': quantity.round(),
+          'quantity': quantityInt,
         };
         if (variationId != null && variationId != 0) {
           it['variation_id'] = variationId;
@@ -738,6 +779,10 @@ class _CartPageState extends State<CartPage> {
           debugPrint('CartPage: error parsing item: $e');
         }
       }
+    }
+    
+    if (kDebugMode) {
+      debugPrint('CartPage: final itemsPayload = ${jsonEncode(itemsPayload)}');
     }
 
     if (kDebugMode) {
