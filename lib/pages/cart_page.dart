@@ -660,11 +660,42 @@ class _CartPageState extends State<CartPage> {
             ? raw
             : Map<String, dynamic>.from(raw as Map);
         
+        if (kDebugMode) {
+          debugPrint('CartPage: processing item raw keys = ${map.keys.toList()}');
+          debugPrint('CartPage: item raw = ${jsonEncode(map)}');
+        }
+        
         // استخراج product_id از فیلدهای مختلف ممکن
-        final productId =
-            map['product_id'] ?? map['id'] ?? map['product']?['id'];
+        // WooCommerce Store API: 'id' is the product_id in cart items
+        // But sometimes it could be in nested 'product' object
+        int? productId;
+        if (map['product_id'] != null) {
+          productId = (map['product_id'] is int) 
+              ? map['product_id'] 
+              : int.tryParse(map['product_id'].toString());
+        } else if (map['id'] != null) {
+          productId = (map['id'] is int) 
+              ? map['id'] 
+              : int.tryParse(map['id'].toString());
+        } else if (map['product'] is Map && map['product']['id'] != null) {
+          productId = (map['product']['id'] is int) 
+              ? map['product']['id'] 
+              : int.tryParse(map['product']['id'].toString());
+        }
+        
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
-        final variationId = map['variation_id'] ?? map['variation']?['id'];
+        
+        // استخراج variation_id
+        int? variationId;
+        if (map['variation_id'] != null && map['variation_id'] != 0) {
+          variationId = (map['variation_id'] is int) 
+              ? map['variation_id'] 
+              : int.tryParse(map['variation_id'].toString());
+        } else if (map['variation'] is Map && map['variation']['id'] != null) {
+          variationId = (map['variation']['id'] is int) 
+              ? map['variation']['id'] 
+              : int.tryParse(map['variation']['id'].toString());
+        }
         
         // استخراج نام محصول از فیلدهای مختلف ممکن
         final productName =
@@ -680,18 +711,19 @@ class _CartPageState extends State<CartPage> {
                       map['totals']?['line_total'] ??
                       map['line_total'];
 
-        if (productId == null) continue;
+        if (productId == null || productId == 0) {
+          if (kDebugMode) {
+            debugPrint('CartPage: skipping item - no valid product_id found');
+          }
+          continue;
+        }
 
         final it = <String, dynamic>{
-          'product_id': (productId is int)
-              ? productId
-              : int.tryParse(productId.toString()) ?? 0,
+          'product_id': productId,
           'quantity': quantity.round(),
         };
-        if (variationId != null) {
-          it['variation_id'] = (variationId is int)
-              ? variationId
-              : int.tryParse(variationId.toString());
+        if (variationId != null && variationId != 0) {
+          it['variation_id'] = variationId;
         }
         if (productName.isNotEmpty) it['name'] = productName;
         if (price != null) it['price'] = price.toString();
@@ -699,7 +731,7 @@ class _CartPageState extends State<CartPage> {
         itemsPayload.add(it);
         
         if (kDebugMode) {
-          debugPrint('CartPage: item raw = ${jsonEncode(map)}');
+          debugPrint('CartPage: added item to payload = ${jsonEncode(it)}');
         }
       } catch (e) {
         if (kDebugMode) {

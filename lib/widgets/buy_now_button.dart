@@ -47,27 +47,69 @@ class _BuyNowChequeButtonState extends State<BuyNowChequeButton> {
       final cartItems = cart['items'] as List?;
       
       if (kDebugMode) {
+        debugPrint('BuyNowChequeButton: cart raw = ${cart.toString()}');
         debugPrint('BuyNowChequeButton: cart items raw = $cartItems');
       }
       
-      final items = cartItems?.map<Map<String, dynamic>>((e) {
-        final id = e['product_id'] ?? e['id'] ?? e['product']?['id'];
-        final qty = e['quantity'] ?? e['qty'] ?? 1;
-        final variation = e['variation_id'] ?? e['variation']?['id'];
-        final name = e['name'] ?? e['product_name'] ?? (e['product'] is Map ? e['product']['name'] : null);
-        final price = e['prices']?['price'] ?? e['price'] ?? e['totals']?['line_total'];
-        
-        final m = <String, dynamic>{
-          'product_id': id,
-          'quantity': qty,
-        };
-        if (variation != null) m['variation_id'] = variation;
-        if (name != null) m['name'] = name.toString();
-        if (price != null) m['price'] = price.toString();
-        return m;
-      }).toList();
+      final items = <Map<String, dynamic>>[];
+      if (cartItems != null) {
+        for (final e in cartItems) {
+          if (kDebugMode) {
+            debugPrint('BuyNowChequeButton: processing item keys = ${e.keys.toList()}');
+          }
+          
+          // استخراج product_id
+          int? productId;
+          if (e['product_id'] != null) {
+            productId = (e['product_id'] is int) 
+                ? e['product_id'] 
+                : int.tryParse(e['product_id'].toString());
+          } else if (e['id'] != null) {
+            productId = (e['id'] is int) 
+                ? e['id'] 
+                : int.tryParse(e['id'].toString());
+          } else if (e['product'] is Map && e['product']['id'] != null) {
+            productId = (e['product']['id'] is int) 
+                ? e['product']['id'] 
+                : int.tryParse(e['product']['id'].toString());
+          }
+          
+          if (productId == null || productId == 0) continue;
+          
+          final qty = (e['quantity'] ?? e['qty'] ?? 1) as num;
+          
+          // استخراج variation_id
+          int? variationId;
+          if (e['variation_id'] != null && e['variation_id'] != 0) {
+            variationId = (e['variation_id'] is int) 
+                ? e['variation_id'] 
+                : int.tryParse(e['variation_id'].toString());
+          } else if (e['variation'] is Map && e['variation']['id'] != null) {
+            variationId = (e['variation']['id'] is int) 
+                ? e['variation']['id'] 
+                : int.tryParse(e['variation']['id'].toString());
+          }
+          
+          final name = e['name'] ?? e['product_name'] ?? (e['product'] is Map ? e['product']['name'] : null);
+          final price = e['prices']?['price'] ?? e['price'] ?? e['totals']?['line_total'];
+          
+          final m = <String, dynamic>{
+            'product_id': productId,
+            'quantity': qty.round(),
+          };
+          if (variationId != null && variationId != 0) m['variation_id'] = variationId;
+          if (name != null) m['name'] = name.toString();
+          if (price != null) m['price'] = price.toString();
+          
+          items.add(m);
+          
+          if (kDebugMode) {
+            debugPrint('BuyNowChequeButton: added item = $m');
+          }
+        }
+      }
 
-      if (items == null || items.isEmpty) {
+      if (items.isEmpty) {
         throw Exception('سبد خرید خالی است.');
       }
       
