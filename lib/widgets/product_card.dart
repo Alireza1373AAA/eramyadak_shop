@@ -151,200 +151,171 @@ class _ProductCardState extends State<ProductCard> {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.shade200,
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
+    return Card(
+      elevation: 1.5,
+      shadowColor: Colors.black12,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
       ),
+      clipBehavior: Clip.hardEdge,
       child: InkWell(
         onTap: widget.onTap,
-        borderRadius: BorderRadius.circular(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // تصویر محصول
-            Expanded(
-              flex: 3,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
-                  child: imageUrl == null
-                      ? Center(
+            // تصویر محصول با نسبت 1:1
+            AspectRatio(
+              aspectRatio: 1,
+              child: imageUrl != null
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      loadingBuilder: (c, child, prog) {
+                        if (prog == null) return child;
+                        return const Center(
+                          child: CircularProgressIndicator(),
+                        );
+                      },
+                      errorBuilder: (_, __, ___) => Container(
+                        color: Colors.grey.shade100,
+                        child: const Center(
                           child: Icon(
-                            Icons.image_not_supported,
+                            Icons.broken_image_outlined,
                             size: 40,
-                            color: Colors.grey.shade400,
-                          ),
-                        )
-                      : Image.network(
-                          imageUrl,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              size: 40,
-                              color: Colors.grey.shade400,
-                            ),
                           ),
                         ),
-                ),
-              ),
+                      ),
+                    )
+                  : Container(
+                      color: Colors.grey.shade200,
+                      child: const Center(
+                        child: Icon(Icons.image_outlined, size: 48),
+                      ),
+                    ),
             ),
             // محتوای کارت
-            Expanded(
-              flex: 4,
-              child: Container(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // اسم محصول کامل - حداکثر ۴ خط
-                    Expanded(
-                      child: Text(
-                        name,
-                        maxLines: 4,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          height: 1.3,
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // اسم محصول کامل - حداکثر ۴ خط
+                  Text(
+                    name,
+                    textAlign: TextAlign.start,
+                    maxLines: 4,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  // قیمت محصول
+                  priceWidget(),
+                  const SizedBox(height: 10),
+                  // کنترل تعداد (کم و زیاد کردن)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(50),
+                          color: Colors.grey.shade100,
+                          border: Border.all(
+                            color: Colors.grey.shade300,
+                            width: 0.8,
+                          ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // قیمت محصول
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: priceWidget(),
-                    ),
-                    const SizedBox(height: 10),
-                    // کنترل تعداد (کم و زیاد کردن)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          // دکمه کاهش
-                          Tooltip(
-                            message: 'کاهش تعداد',
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _decrementQuantity,
-                                borderRadius: const BorderRadius.horizontal(
-                                  right: Radius.circular(12),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // دکمه کاهش
+                            InkWell(
+                              onTap: _decrementQuantity,
+                              borderRadius: const BorderRadius.horizontal(
+                                right: Radius.circular(50),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
                                 ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
-                                    Icons.remove,
-                                    size: 18,
-                                    color: _quantity > 1 ? _navyBlue : Colors.grey,
-                                    semanticLabel: 'کاهش تعداد',
-                                  ),
+                                child: Icon(
+                                  Icons.remove,
+                                  size: 18,
+                                  color: _quantity > 1 ? _navyBlue : Colors.grey,
                                 ),
                               ),
                             ),
-                          ),
-                          // نمایش تعداد
-                          Container(
-                            constraints: const BoxConstraints(minWidth: 36),
-                            alignment: Alignment.center,
-                            child: Semantics(
-                              label: 'تعداد: $_quantity',
+                            // نمایش تعداد
+                            Container(
+                              constraints: const BoxConstraints(minWidth: 28),
+                              alignment: Alignment.center,
                               child: Text(
                                 '$_quantity',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 16,
+                                  fontSize: 15,
                                   color: _navyBlue,
                                 ),
                               ),
                             ),
-                          ),
-                          // دکمه افزایش
-                          Tooltip(
-                            message: 'افزایش تعداد',
-                            child: Material(
-                              color: Colors.transparent,
-                              child: InkWell(
-                                onTap: _incrementQuantity,
-                                borderRadius: const BorderRadius.horizontal(
-                                  left: Radius.circular(12),
+                            // دکمه افزایش
+                            InkWell(
+                              onTap: _incrementQuantity,
+                              borderRadius: const BorderRadius.horizontal(
+                                left: Radius.circular(50),
+                              ),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
                                 ),
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  child: const Icon(
-                                    Icons.add,
-                                    size: 18,
-                                    color: _navyBlue,
-                                    semanticLabel: 'افزایش تعداد',
-                                  ),
+                                child: const Icon(
+                                  Icons.add,
+                                  size: 18,
+                                  color: _navyBlue,
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    // دکمه افزودن به سبد با رنگ سورمه‌ای
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _loading ? null : _addToCart,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _navyBlue,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        icon: _loading
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Icon(Icons.shopping_cart_outlined, size: 18),
-                        label: Text(
-                          _loading ? 'در حال افزودن...' : 'افزودن به سبد',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                          ],
                         ),
                       ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  // دکمه افزودن به سبد با رنگ سورمه‌ای
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _loading ? null : _addToCart,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _navyBlue,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'افزودن به سبد',
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ],
