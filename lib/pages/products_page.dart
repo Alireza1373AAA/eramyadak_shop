@@ -88,13 +88,22 @@ class _ProductsPageState extends State<ProductsPage> {
 
   @override
   Widget build(BuildContext context) {
-    // تعداد ستون‌ها بر اساس عرض صفحه (حداقل 2، حداکثر 4)
+    // محاسبه ریسپانسیو بر اساس عرض صفحه
     final screenWidth = MediaQuery.of(context).size.width;
-    final crossAxisCount = (screenWidth ~/ 180).clamp(
-      2,
-      4,
-    ); // هر کارت 180px عرض
-    final childAspectRatio = 0.48; // ارتفاع کارت مشابه product_card.dart
+    final isSmallScreen = screenWidth < 375; // iPhone SE
+    final isMediumScreen = screenWidth >= 375 && screenWidth < 414;
+    final isLargeScreen = screenWidth >= 600;
+    
+    // تعداد ستون‌ها بر اساس اندازه صفحه
+    final crossAxisCount = isLargeScreen ? 3 : 2;
+    
+    // نسبت ابعاد کارت - کوچکتر = بلندتر
+    final childAspectRatio = isSmallScreen 
+        ? 0.42  // کارت بلندتر برای iPhone SE
+        : (isMediumScreen ? 0.46 : 0.48);
+    
+    // فاصله بین کارت‌ها
+    final spacing = isSmallScreen ? 8.0 : 12.0;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -108,12 +117,12 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
           ],
         ),
-        body: _buildBody(crossAxisCount, childAspectRatio),
+        body: _buildBody(crossAxisCount, childAspectRatio, spacing),
       ),
     );
   }
 
-  Widget _buildBody(int crossAxisCount, double childAspectRatio) {
+  Widget _buildBody(int crossAxisCount, double childAspectRatio, double spacing) {
     if (_error != null && _items.isEmpty) {
       return _ErrorView(message: _error!, onRetry: () => _load(first: true));
     }
@@ -132,7 +141,7 @@ class _ProductsPageState extends State<ProductsPage> {
         controller: _controller,
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(spacing),
             sliver: SliverGrid(
               delegate: SliverChildBuilderDelegate((context, i) {
                 final p = _items[i];
@@ -154,8 +163,8 @@ class _ProductsPageState extends State<ProductsPage> {
               }, childCount: _items.length),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
                 childAspectRatio: childAspectRatio,
               ),
             ),
