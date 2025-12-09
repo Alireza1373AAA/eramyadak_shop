@@ -657,7 +657,7 @@ class _CartPageState extends State<CartPage> {
     
     if (kDebugMode) {
       debugPrint('CartPage: _items length = ${_items.length}');
-      debugPrint('CartPage: _items = $_items');
+      debugPrint('CartPage: _cart = ${jsonEncode(_cart)}');
     }
     
     for (final raw in _items) {
@@ -672,29 +672,28 @@ class _CartPageState extends State<CartPage> {
         }
         
         // استخراج product_id از فیلدهای مختلف ممکن
-        // WooCommerce Store API: 'id' is the product_id in cart items
         int? productId;
         
-        // Try product_id first
-        final rawProductId = map['product_id'];
-        if (rawProductId != null) {
-          productId = (rawProductId is int) 
-              ? rawProductId 
-              : int.tryParse(rawProductId.toString());
+        // WooCommerce Store API v1 uses 'id' for product_id
+        final rawId = map['id'];
+        if (rawId != null) {
+          productId = (rawId is int) 
+              ? rawId 
+              : int.tryParse(rawId.toString());
           if (kDebugMode) {
-            debugPrint('CartPage: found product_id = $productId');
+            debugPrint('CartPage: found id = $productId (type: ${rawId.runtimeType})');
           }
         }
         
-        // Then try 'id' field (WooCommerce Store API uses this)
+        // Try product_id field (alternative API format)
         if (productId == null || productId == 0) {
-          final rawId = map['id'];
-          if (rawId != null) {
-            productId = (rawId is int) 
-                ? rawId 
-                : int.tryParse(rawId.toString());
+          final rawProductId = map['product_id'];
+          if (rawProductId != null) {
+            productId = (rawProductId is int) 
+                ? rawProductId 
+                : int.tryParse(rawProductId.toString());
             if (kDebugMode) {
-              debugPrint('CartPage: found id = $productId (type: ${rawId.runtimeType})');
+              debugPrint('CartPage: found product_id = $productId');
             }
           }
         }
@@ -776,7 +775,7 @@ class _CartPageState extends State<CartPage> {
         }
       } catch (e) {
         if (kDebugMode) {
-          debugPrint('CartPage: error parsing item: $e');
+          debugPrint('CartPage: error parsing item: $e, stack: ${StackTrace.current}');
         }
       }
     }
