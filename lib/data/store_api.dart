@@ -232,10 +232,11 @@ class StoreApi {
   }) async {
     final uri = _u('/wp-json/eram/v1/create-order-cheque');
     final payload = <String, dynamic>{
-      // فیلدهای اجباری مربوط به روش پرداخت چک
-      'payment_method': 'cheque',
-      'payment_method_title': 'Cheque',
+      // فیلدهای اجباری - از روش پرداخت زرینپال استفاده میکنیم تا با Helo سازگار باشد
+      'payment_method': 'WC_ZPal',
+      'payment_method_title': 'پرداخت امن زرین‌پال',
       'set_paid': false,
+      'created_via': 'checkout',
       // فیلدهای اختیاری
       if (billing != null) 'billing': billing,
       if (items != null) 'items': items,
