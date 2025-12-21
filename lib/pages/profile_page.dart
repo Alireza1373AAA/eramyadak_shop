@@ -25,6 +25,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _editAddress(AuthProfile profile) async {
     final cityCtrl = TextEditingController(text: profile.city);
+    final stateCtrl = TextEditingController(text: profile.state);
     final addressCtrl = TextEditingController(text: profile.address);
     final postalCodeCtrl = TextEditingController(text: profile.postalCode);
 
@@ -56,6 +57,15 @@ class _ProfilePageState extends State<ProfilePage> {
                     labelText: 'شهر',
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.location_city),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: stateCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'استان',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.map),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -112,6 +122,7 @@ class _ProfilePageState extends State<ProfilePage> {
       // ذخیره در پروفایل محلی
       await AuthStorage.updateProfile(
         city: cityCtrl.text.trim(),
+        state: stateCtrl.text.trim(),
         address: addressCtrl.text.trim(),
         postalCode: postalCodeCtrl.text.trim(),
       );
@@ -122,6 +133,7 @@ class _ProfilePageState extends State<ProfilePage> {
         savedToServer = await _wooApi.updateCustomerAddress(
           phone: profile.phone,
           city: cityCtrl.text.trim(),
+          state: stateCtrl.text.trim(),
           address: addressCtrl.text.trim(),
           postalCode: postalCodeCtrl.text.trim(),
         );

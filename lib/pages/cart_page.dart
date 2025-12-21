@@ -649,6 +649,17 @@ class _CartPageState extends State<CartPage> {
       'phone': profile.phone,
       'address_1': profile.address,
       'city': profile.city,
+      'state': profile.state,
+      'postcode': profile.postalCode,
+    };
+
+    // ساخت shipping (معمولاً مشابه billing است)
+    final shipping = {
+      'first_name': profile.firstName,
+      'last_name': profile.lastName,
+      'address_1': profile.address,
+      'city': profile.city,
+      'state': profile.state,
       'postcode': profile.postalCode,
     };
 
@@ -787,6 +798,7 @@ class _CartPageState extends State<CartPage> {
     if (kDebugMode) {
       debugPrint('CartPage: itemsPayload = ${jsonEncode(itemsPayload)}');
       debugPrint('CartPage: billing = ${jsonEncode(billing)}');
+      debugPrint('CartPage: shipping = ${jsonEncode(shipping)}');
       debugPrint('CartPage: totalToman = $_totalToman');
     }
 
@@ -801,6 +813,7 @@ class _CartPageState extends State<CartPage> {
       final res = await api.createOrderCheque(
         billing: billing,
         items: itemsPayload,
+        shipping: shipping,
         total: (_totalToman * 10).toString(), // ارسال مبلغ کل به ریال
       );
 

@@ -8,6 +8,7 @@ class AuthProfile {
   final String phone;
   final String address;
   final String city;
+  final String state;
   final String postalCode;
 
   const AuthProfile({
@@ -16,6 +17,7 @@ class AuthProfile {
     required this.phone,
     this.address = '',
     this.city = '',
+    this.state = '',
     this.postalCode = '',
   });
 
@@ -36,7 +38,7 @@ class AuthProfile {
 
   /// آدرس کامل
   String get fullAddress {
-    final parts = [city, address, postalCode]
+    final parts = [city, state, address, postalCode]
         .where((e) => e.trim().isNotEmpty)
         .toList();
     return parts.join('، ');
@@ -48,6 +50,7 @@ class AuthProfile {
     'phone': phone,
     'address': address,
     'city': city,
+    'state': state,
     'postalCode': postalCode,
   };
 
@@ -57,6 +60,7 @@ class AuthProfile {
     phone: (j['phone'] ?? '').toString(),
     address: (j['address'] ?? '').toString(),
     city: (j['city'] ?? '').toString(),
+    state: (j['state'] ?? '').toString(),
     postalCode: (j['postalCode'] ?? '').toString(),
   );
 
@@ -67,6 +71,7 @@ class AuthProfile {
     String? phone,
     String? address,
     String? city,
+    String? state,
     String? postalCode,
   }) {
     return AuthProfile(
@@ -75,6 +80,7 @@ class AuthProfile {
       phone: phone ?? this.phone,
       address: address ?? this.address,
       city: city ?? this.city,
+      state: state ?? this.state,
       postalCode: postalCode ?? this.postalCode,
     );
   }
@@ -114,6 +120,7 @@ class AuthStorage {
     String? phone,
     String? address,
     String? city,
+    String? state,
     String? postalCode,
   }) async {
     final old = await loadProfile();
@@ -125,6 +132,7 @@ class AuthStorage {
       phone: phone,
       address: address,
       city: city,
+      state: state,
       postalCode: postalCode,
     );
 

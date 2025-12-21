@@ -654,6 +654,7 @@ class WooApi {
   Future<bool> updateCustomerAddress({
     required String phone,
     required String city,
+    required String state,
     required String address,
     required String postalCode,
   }) async {
@@ -686,12 +687,14 @@ class WooApi {
       final body = {
         'billing': {
           'city': city,
+          'state': state,
           'address_1': address,
           'postcode': postalCode,
           'country': 'IR',
         },
         'shipping': {
           'city': city,
+          'state': state,
           'address_1': address,
           'postcode': postalCode,
           'country': 'IR',
