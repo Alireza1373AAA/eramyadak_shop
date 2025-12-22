@@ -274,31 +274,53 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
 
-            GridView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 2,
-                childAspectRatio: .62,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              itemCount: _items.length + (_loading ? 2 : 0),
-              itemBuilder: (ctx, i) {
-                if (i >= _items.length) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final p = _items[i];
-                return ProductCard(
-                  p: p,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProductDetail(product: p),
-                    ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                // محاسبه ریسپانسیو
+                final screenWidth = MediaQuery.of(context).size.width;
+                final isSmallScreen = screenWidth < 375; // iPhone SE
+                final isMediumScreen = screenWidth >= 375 && screenWidth < 414;
+                final isLargeScreen = screenWidth >= 600;
+                
+                // تعداد ستون‌ها بر اساس اندازه صفحه
+                final crossAxisCount = isLargeScreen ? 3 : 2;
+                
+                // نسبت ابعاد کارت - کوچکتر = بلندتر
+                final childAspectRatio = isSmallScreen 
+                    ? 0.42  // کارت بلندتر برای iPhone SE
+                    : (isMediumScreen ? 0.46 : 0.48);
+                
+                // فاصله بین کارت‌ها
+                final spacing = isSmallScreen ? 8.0 : 12.0;
+                final horizontalPadding = isSmallScreen ? 8.0 : 12.0;
+                
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    childAspectRatio: childAspectRatio,
+                    crossAxisSpacing: spacing,
+                    mainAxisSpacing: spacing,
                   ),
-                  onCartUpdated: _refreshCartBadge,
+                  itemCount: _items.length + (_loading ? 2 : 0),
+                  itemBuilder: (ctx, i) {
+                    if (i >= _items.length) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final p = _items[i];
+                    return ProductCard(
+                      p: p,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ProductDetail(product: p),
+                        ),
+                      ),
+                      onCartUpdated: _refreshCartBadge,
+                    );
+                  },
                 );
               },
             ),

@@ -1,7 +1,7 @@
 // lib/pages/products_page.dart
 import 'package:flutter/material.dart';
 import '../data/woocommerce_api.dart';
-import '../utils/price.dart';
+import '../widgets/product_card.dart';
 import 'product_detail.dart';
 
 class ProductsPage extends StatefulWidget {
@@ -86,58 +86,24 @@ class _ProductsPageState extends State<ProductsPage> {
     }
   }
 
-  String _formatPriceFromProduct(Map<String, dynamic> p) {
-    final sale = p['sale_price'] ?? p['prices']?['sale_price'] ?? p['price'];
-    final regular =
-        p['regular_price'] ?? p['prices']?['regular_price'] ?? p['price'];
-    final use = (sale != null && sale.toString().isNotEmpty) ? sale : regular;
-    return Price.formatToman(use);
-  }
-
-  Map<String, Object?> _productStockInfo(Map<String, dynamic> p) {
-    bool? inStock;
-    int? qty;
-
-    if (p['stock_status'] != null) {
-      final s = p['stock_status'].toString().toLowerCase();
-      if (s.contains('instock')) inStock = true;
-      if (s.contains('outofstock')) inStock = false;
-    }
-    if (p['in_stock'] is bool) inStock = p['in_stock'] as bool;
-    if (p['is_in_stock'] is bool) inStock = p['is_in_stock'] as bool;
-    if (p['stock_quantity'] is num) qty = (p['stock_quantity'] as num).toInt();
-    inStock ??= true;
-
-    String text;
-    Color color;
-    if (!inStock) {
-      text = 'ناموجود';
-      color = Colors.redAccent;
-    } else if (qty != null) {
-      if (qty <= 5) {
-        text = 'فقط $qty عدد';
-        color = Colors.orange;
-      } else {
-        text = 'موجود';
-        color = Colors.green;
-      }
-    } else {
-      text = 'موجود';
-      color = Colors.green;
-    }
-
-    return {'inStock': inStock, 'qty': qty, 'text': text, 'color': color};
-  }
-
   @override
   Widget build(BuildContext context) {
-    // تعداد ستون‌ها بر اساس عرض صفحه (حداقل 2، حداکثر 4)
+    // محاسبه ریسپانسیو بر اساس عرض صفحه
     final screenWidth = MediaQuery.of(context).size.width;
-    final crossAxisCount = (screenWidth ~/ 180).clamp(
-      2,
-      4,
-    ); // هر کارت 180px عرض
-    final childAspectRatio = 0.68; // ارتفاع کارت تقریبی
+    final isSmallScreen = screenWidth < 375; // iPhone SE
+    final isMediumScreen = screenWidth >= 375 && screenWidth < 414;
+    final isLargeScreen = screenWidth >= 600;
+    
+    // تعداد ستون‌ها بر اساس اندازه صفحه
+    final crossAxisCount = isLargeScreen ? 3 : 2;
+    
+    // نسبت ابعاد کارت - کوچکتر = بلندتر
+    final childAspectRatio = isSmallScreen 
+        ? 0.42  // کارت بلندتر برای iPhone SE
+        : (isMediumScreen ? 0.46 : 0.48);
+    
+    // فاصله بین کارت‌ها
+    final spacing = isSmallScreen ? 8.0 : 12.0;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -151,12 +117,12 @@ class _ProductsPageState extends State<ProductsPage> {
             ),
           ],
         ),
-        body: _buildBody(crossAxisCount, childAspectRatio),
+        body: _buildBody(crossAxisCount, childAspectRatio, spacing),
       ),
     );
   }
 
-  Widget _buildBody(int crossAxisCount, double childAspectRatio) {
+  Widget _buildBody(int crossAxisCount, double childAspectRatio, double spacing) {
     if (_error != null && _items.isEmpty) {
       return _ErrorView(message: _error!, onRetry: () => _load(first: true));
     }
@@ -175,148 +141,30 @@ class _ProductsPageState extends State<ProductsPage> {
         controller: _controller,
         slivers: [
           SliverPadding(
-            padding: const EdgeInsets.all(12),
+            padding: EdgeInsets.all(spacing),
             sliver: SliverGrid(
               delegate: SliverChildBuilderDelegate((context, i) {
                 final p = _items[i];
-                final rawName = (p['name'] ?? '').toString();
-                final name = rawName.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
-                String? img;
-                final images = p['images'];
-                if (images is List && images.isNotEmpty) {
-                  final first = images.first;
-                  if (first is Map && first['src'] is String) {
-                    img = first['src'] as String;
-                  } else if (first is String) {
-                    img = first;
-                  }
-                }
-
-                final priceText = _formatPriceFromProduct(p);
-                final stock = _productStockInfo(p);
-                final stockText = stock['text'] as String;
-                final stockColor = stock['color'] as Color;
-
-                return Card(
-                  elevation: 1.5,
-                  shadowColor: Colors.black12,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  clipBehavior: Clip.hardEdge,
-                  child: InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => ProductDetail(product: p),
-                        ),
-                      ).then((_) => _load(first: true));
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AspectRatio(
-                          aspectRatio: 1,
-                          child: img != null
-                              ? Hero(
-                                  tag: 'product_image_${p['id'] ?? i}',
-                                  child: Image.network(
-                                    img,
-                                    fit: BoxFit.cover,
-                                    loadingBuilder: (c, child, prog) {
-                                      if (prog == null) return child;
-                                      return const Center(
-                                        child: CircularProgressIndicator(),
-                                      );
-                                    },
-                                    errorBuilder: (_, __, ___) => Container(
-                                      color: Colors.grey.shade100,
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.broken_image_outlined,
-                                          size: 40,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                )
-                              : Container(
-                                  color: Colors.grey.shade200,
-                                  child: const Center(
-                                    child: Icon(Icons.image_outlined, size: 48),
-                                  ),
-                                ),
-                        ),
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                name,
-                                textAlign: TextAlign.start,
-                                maxLines: 4,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13.5,
-                                  height: 1.35,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 10),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Expanded(
-                                    child: Text(
-                                      priceText,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 14,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                      ),
-                                    ),
-                                  ),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 3,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(50),
-                                      color: stockColor.withOpacity(0.12),
-                                      border: Border.all(
-                                        color: stockColor.withOpacity(0.38),
-                                        width: 0.8,
-                                      ),
-                                    ),
-                                    child: Text(
-                                      stockText,
-                                      style: TextStyle(
-                                        color: stockColor,
-                                        fontSize: 10.5,
-                                        fontWeight: FontWeight.w700,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                return ProductCard(
+                  p: p,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ProductDetail(product: p),
+                      ),
+                    ).then((_) => _load(first: true));
+                  },
+                  onCartUpdated: () async {
+                    // refresh cart after adding
+                  },
                 );
               }, childCount: _items.length),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 12,
-                crossAxisSpacing: 12,
+                mainAxisSpacing: spacing,
+                crossAxisSpacing: spacing,
                 childAspectRatio: childAspectRatio,
               ),
             ),

@@ -217,17 +217,33 @@ class StoreApi {
   }
 
   /// ثبت سفارش چک با مدیریت 401/403
+  ///
+  /// [billing] - اطلاعات صورت‌حساب مشتری (نام، آدرس، تلفن، ایمیل و ...)
+  /// [items] - لیست آیتم‌های سفارش (هر آیتم شامل product_id، quantity و variation_id اختیاری)
+  /// [shipping] - اطلاعات ارسال (آدرس ارسال)
+  /// [total] - مبلغ کل سفارش (اختیاری)
+  /// [meta] - متادیتای اضافی (اختیاری)
   Future<Map<String, dynamic>> createOrderCheque({
     Map<String, dynamic>? billing,
     List<Map<String, dynamic>>? items,
     Map<String, dynamic>? shipping,
+    List<Map<String, dynamic>>? shippingLines,
+    String? total,
     Map<String, dynamic>? meta,
   }) async {
     final uri = _u('/wp-json/eram/v1/create-order-cheque');
-    final payload = {
+    final payload = <String, dynamic>{
+      // فیلدهای اجباری - از روش پرداخت زرینپال استفاده میکنیم تا با Helo سازگار باشد
+      'payment_method': 'WC_ZPal',
+      'payment_method_title': 'پرداخت امن زرین‌پال',
+      'set_paid': false,
+      'created_via': 'checkout',
+      // فیلدهای اختیاری
       if (billing != null) 'billing': billing,
-      if (items != null) 'line_items': items,
+      if (items != null) 'items': items,
       if (shipping != null) 'shipping': shipping,
+      if (shippingLines != null) 'shipping_lines': shippingLines,
+      if (total != null) 'total': total,
       if (meta != null) 'meta': meta,
     };
 
