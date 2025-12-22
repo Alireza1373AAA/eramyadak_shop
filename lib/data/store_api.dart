@@ -227,6 +227,7 @@ class StoreApi {
     Map<String, dynamic>? billing,
     List<Map<String, dynamic>>? items,
     Map<String, dynamic>? shipping,
+    List<Map<String, dynamic>>? shippingLines,
     String? total,
     Map<String, dynamic>? meta,
   }) async {
@@ -241,6 +242,7 @@ class StoreApi {
       if (billing != null) 'billing': billing,
       if (items != null) 'items': items,
       if (shipping != null) 'shipping': shipping,
+      if (shippingLines != null) 'shipping_lines': shippingLines,
       if (total != null) 'total': total,
       if (meta != null) 'meta': meta,
     };

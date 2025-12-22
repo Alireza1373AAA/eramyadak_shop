@@ -662,6 +662,15 @@ class _CartPageState extends State<CartPage> {
       'state': profile.state,
       'postcode': profile.postalCode,
     };
+    
+    // اضافه کردن shipping lines برای تعیین روش حمل و نقل
+    final shippingLines = [
+      {
+        'method_id': 'free_shipping',
+        'method_title': 'Free shipping',
+        'total': '0',
+      }
+    ];
 
     // ساخت payload آیتم‌ها
     final itemsPayload = <Map<String, dynamic>>[];
@@ -799,6 +808,7 @@ class _CartPageState extends State<CartPage> {
       debugPrint('CartPage: itemsPayload = ${jsonEncode(itemsPayload)}');
       debugPrint('CartPage: billing = ${jsonEncode(billing)}');
       debugPrint('CartPage: shipping = ${jsonEncode(shipping)}');
+      debugPrint('CartPage: shippingLines = ${jsonEncode(shippingLines)}');
       debugPrint('CartPage: totalToman = $_totalToman');
     }
 
@@ -814,6 +824,7 @@ class _CartPageState extends State<CartPage> {
         billing: billing,
         items: itemsPayload,
         shipping: shipping,
+        shippingLines: shippingLines,
         total: (_totalToman * 10).toString(), // ارسال مبلغ کل به ریال
       );
 
