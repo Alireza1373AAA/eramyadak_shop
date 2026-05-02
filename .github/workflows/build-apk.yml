@@ -21,11 +21,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: 3.24.5
-          cache: true
+      - name: Install Flutter SDK
+        run: |
+          git clone https://github.com/flutter/flutter.git --depth 1 -b stable "$HOME/flutter"
+          echo "$HOME/flutter/bin" >> "$GITHUB_PATH"
 
       - name: Flutter version
         run: flutter --version
