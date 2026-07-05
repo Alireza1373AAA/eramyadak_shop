@@ -47,11 +47,10 @@ class ZarinpalService {
     final data = jsonDecode(res.body) as Map<String, dynamic>;
     final authority = data['data']?['authority']?.toString() ?? '';
     if (authority.isEmpty) {
-      final msg =
-          (data['errors']?['message'] ??
-                  data['data']?['message'] ??
-                  'authority دریافت نشد')
-              .toString();
+      final msg = (data['errors']?['message'] ??
+              data['data']?['message'] ??
+              'authority دریافت نشد')
+          .toString();
       throw Exception(msg);
     }
     return authority;
@@ -163,8 +162,7 @@ class _CartPageState extends State<CartPage> {
 
   int get _totalToman {
     final t = _cart?['totals'] as Map<String, dynamic>?;
-    final v =
-        t?['total_price'] ??
+    final v = t?['total_price'] ??
         t?['total'] ??
         t?['grand_total'] ??
         _cart?['total'] ??
@@ -310,14 +308,13 @@ class _CartPageState extends State<CartPage> {
 
   Widget _buildCartItem(BuildContext context, int i) {
     final x = _items[i] as Map<String, dynamic>;
-    final itemKey = (x['key'] ?? x['item_key'] ?? x['cart_item_key'] ?? '')
+    final itemKey =
+        (x['key'] ?? x['item_key'] ?? x['cart_item_key'] ?? '').toString();
+    final name = (x['name'] ??
+            x['product_name'] ??
+            (x['product'] is Map ? x['product']['name'] : null) ??
+            '')
         .toString();
-    final name =
-        (x['name'] ??
-                x['product_name'] ??
-                (x['product'] is Map ? x['product']['name'] : null) ??
-                '')
-            .toString();
     final qty = ((x['quantity'] ?? x['qty'] ?? 1) as num).round();
 
     String? imageUrl;
@@ -326,11 +323,9 @@ class _CartPageState extends State<CartPage> {
       final first = images.first;
       if (first is Map && first['src'] is String) imageUrl = first['src'];
       if (first is String) imageUrl = first;
-    } else if (x['image'] is String)
-      imageUrl = x['image'];
+    } else if (x['image'] is String) imageUrl = x['image'];
 
-    final lineRaw =
-        x['totals']?['line_total'] ??
+    final lineRaw = x['totals']?['line_total'] ??
         x['line_total'] ??
         x['total'] ??
         x['prices']?['price'] ??
@@ -663,12 +658,11 @@ class _CartPageState extends State<CartPage> {
             map['product_id'] ?? map['id'] ?? map['product']?['id'];
         final quantity = (map['quantity'] ?? map['qty'] ?? 1) as num;
         final variationId = map['variation_id'] ?? map['variation']?['id'];
-        final productName =
-            (map['name'] ??
-                    map['product_name'] ??
-                    (map['product'] is Map ? map['product']['name'] : null) ??
-                    '')
-                .toString();
+        final productName = (map['name'] ??
+                map['product_name'] ??
+                (map['product'] is Map ? map['product']['name'] : null) ??
+                '')
+            .toString();
 
         if (productId == null) continue;
 
@@ -712,6 +706,11 @@ class _CartPageState extends State<CartPage> {
 
       if (res['success'] == true) {
         final id = res['order_id'] ?? res['id'] ?? res['orderId'];
+        await api.clearCartAfterOrder();
+        if (!mounted) return;
+        setState(() {
+          _cart = const {'items': []};
+        });
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
@@ -727,10 +726,8 @@ class _CartPageState extends State<CartPage> {
             ],
           ),
         );
-        await _loadCart();
       } else {
-        final err =
-            res['error'] ??
+        final err = res['error'] ??
             res['message'] ??
             res['raw']?.toString() ??
             'خطای ناشناخته';
@@ -961,8 +958,7 @@ class _ZarinpalWebViewPageState extends State<ZarinpalWebViewPage> {
       final uri = Uri.parse(url);
       final status =
           uri.queryParameters['Status'] ?? uri.queryParameters['status'];
-      final authority =
-          uri.queryParameters['Authority'] ??
+      final authority = uri.queryParameters['Authority'] ??
           uri.queryParameters['authority'] ??
           widget.authority;
 

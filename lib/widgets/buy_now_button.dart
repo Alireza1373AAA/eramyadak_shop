@@ -69,6 +69,7 @@ class _BuyNowChequeButtonState extends State<BuyNowChequeButton> {
       final res = await _api.createOrderCheque(billing: billing, items: items);
 
       final orderId = res['order_id'] ?? res['id'] ?? res['orderId'];
+      await _api.clearCartAfterOrder();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

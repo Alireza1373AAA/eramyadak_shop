@@ -177,9 +177,9 @@ class StoreApi {
     required int quantity,
   }) async {
     Future<http.Response> _doPost() => _post(
-      _u('/wp-json/wc/store/v1/cart/update-item'),
-      {'key': itemKey, 'quantity': quantity},
-    );
+          _u('/wp-json/wc/store/v1/cart/update-item'),
+          {'key': itemKey, 'quantity': quantity},
+        );
     var r = await _doPost();
     if (r.statusCode == 401 ||
         r.body.contains('woocommerce_rest_missing_nonce')) {
@@ -217,6 +217,53 @@ class StoreApi {
   }
 
   /// ثبت سفارش چک با مدیریت 401/403
+  List<dynamic> _cartItems(Map<String, dynamic> cart) =>
+      (cart['items'] as List?) ??
+      (cart['line_items'] as List?) ??
+      (cart['cart_items'] as List?) ??
+      const [];
+
+  String _cartItemKey(dynamic item) {
+    if (item is! Map) return '';
+    return (item['key'] ?? item['item_key'] ?? item['cart_item_key'] ?? '')
+        .toString();
+  }
+
+  Future<void> clearCartAfterOrder() async {
+    try {
+      await clearCart();
+      return;
+    } catch (e) {
+      debugPrint('StoreApi.clearCartAfterOrder: clear failed: $e');
+    }
+
+    final cart = await getCart();
+    final items = _cartItems(cart);
+    if (items.isEmpty) return;
+
+    Object? lastError;
+    var removedAny = false;
+    for (final item in items) {
+      final key = _cartItemKey(item);
+      if (key.isEmpty) continue;
+
+      try {
+        await removeItem(itemKey: key);
+        removedAny = true;
+      } catch (e) {
+        lastError = e;
+        debugPrint('StoreApi.clearCartAfterOrder: remove failed: $e');
+      }
+    }
+
+    final refreshed = await getCart();
+    if (_cartItems(refreshed).isEmpty) return;
+
+    throw HttpException(
+      'Order created but cart could not be cleared: ${lastError ?? (removedAny ? 'items remain' : 'missing item keys')}',
+    );
+  }
+
   Future<Map<String, dynamic>> createOrderCheque({
     Map<String, dynamic>? billing,
     List<Map<String, dynamic>>? items,
@@ -232,7 +279,8 @@ class StoreApi {
     };
 
     if (kDebugMode) {
-      debugPrint('StoreApi.createOrderCheque: payload = ${json.encode(payload)}');
+      debugPrint(
+          'StoreApi.createOrderCheque: payload = ${json.encode(payload)}');
     }
 
     // اینجا کلید اختصاصی از config.dart خوانده و هدر ساخته می‌شود
@@ -245,10 +293,11 @@ class StoreApi {
 
     var resp = await send();
     if (kDebugMode) {
-      debugPrint('StoreApi.createOrderCheque: response.statusCode = ${resp.statusCode}');
+      debugPrint(
+          'StoreApi.createOrderCheque: response.statusCode = ${resp.statusCode}');
       debugPrint('StoreApi.createOrderCheque: response.body = ${resp.body}');
     }
-    
+
     if (resp.statusCode == 401 ||
         resp.statusCode == 403 ||
         resp.body.toLowerCase().contains('rest_forbidden')) {
