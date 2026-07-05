@@ -35,11 +35,18 @@ jobs:
 
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses
+
+      - name: Install Android build packages
+        run: |
+          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Build release APK
-        run: flutter build apk --release
+        run: |
+          set -o pipefail
+          flutter build apk --release --verbose 2>&1 | tee build-apk.log
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -47,3 +54,11 @@ jobs:
           name: eramyadak-shop-release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eramyadak-shop-build-log
+          path: build-apk.log
+          if-no-files-found: warn
