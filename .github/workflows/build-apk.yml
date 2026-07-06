@@ -152,6 +152,7 @@ jobs:
           cp build-apk.log ci-logs/latest-build-apk.log
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B ci/build-log-latest
           git add ci-logs/latest-build-apk.log
-          git commit -m "Add latest APK build log [skip ci]" || exit 0
-          git push || true
+          git commit -m "Add latest APK build log [skip ci]" || true
+          git push --force origin HEAD:ci/build-log-latest || true
