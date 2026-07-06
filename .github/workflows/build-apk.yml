@@ -36,6 +36,52 @@ jobs:
       - name: Accept Android licenses
         run: yes | sdkmanager --licenses
 
+      - name: Configure Gradle mirrors
+        run: |
+          mkdir -p "$HOME/.gradle"
+          cat > "$HOME/.gradle/init.gradle.kts" <<'EOF'
+          beforeSettings {
+              dependencyResolutionManagement {
+                  repositories {
+                      maven { url = uri("https://maven.aliyun.com/repository/google") }
+                      maven { url = uri("https://maven.aliyun.com/repository/central") }
+                      google()
+                      mavenCentral()
+                  }
+              }
+              pluginManagement {
+                  repositories {
+                      maven { url = uri("https://maven.aliyun.com/repository/google") }
+                      maven { url = uri("https://maven.aliyun.com/repository/central") }
+                      maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+                      google()
+                      mavenCentral()
+                      gradlePluginPortal()
+                  }
+              }
+          }
+          allprojects {
+              buildscript {
+                  repositories {
+                      maven { url = uri("https://maven.aliyun.com/repository/google") }
+                      maven { url = uri("https://maven.aliyun.com/repository/central") }
+                      maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+                      google()
+                      mavenCentral()
+                      gradlePluginPortal()
+                  }
+              }
+              buildscript.repositories {
+                  maven { url = uri("https://maven.aliyun.com/repository/google") }
+                  maven { url = uri("https://maven.aliyun.com/repository/central") }
+                  maven { url = uri("https://maven.aliyun.com/repository/gradle-plugin") }
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          EOF
+
       - name: Install Android build packages
         run: |
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
