@@ -108,3 +108,14 @@ jobs:
           name: eramyadak-shop-build-log
           path: build-apk.log
           if-no-files-found: warn
+
+      - name: Commit failed build log
+        if: failure()
+        run: |
+          mkdir -p ci-logs
+          cp build-apk.log ci-logs/latest-build-apk.log
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add ci-logs/latest-build-apk.log
+          git commit -m "Add latest APK build log [skip ci]" || exit 0
+          git push
