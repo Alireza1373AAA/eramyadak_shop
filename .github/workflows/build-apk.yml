@@ -105,14 +105,11 @@ jobs:
             python3 - <<'PY'
           from pathlib import Path
           lines = Path("build-apk.log").read_text(errors="replace").splitlines()
-          markers = (
-              "FAILURE: Build failed with an exception.",
-              "* What went wrong:",
-              "Execution failed for task",
-              "ERROR:",
-              "Error:",
-          )
-          start = next((i for i, line in enumerate(lines) if any(marker in line for marker in markers)), max(0, len(lines) - 160))
+          primary_markers = ("* What went wrong:", "Execution failed for task")
+          fallback_markers = ("FAILURE: Build failed with an exception.", "ERROR:", "Error:")
+          start = next((i for i, line in enumerate(lines) if any(marker in line for marker in primary_markers)), None)
+          if start is None:
+              start = next((i for i, line in enumerate(lines) if any(marker in line for marker in fallback_markers)), max(0, len(lines) - 160))
           excerpt = lines[max(0, start - 20): min(len(lines), start + 180)]
           Path("build-apk-excerpt.log").write_text("\n".join(excerpt), errors="replace")
           PY
@@ -125,7 +122,7 @@ jobs:
             message="$(python3 - <<'PY'
           from pathlib import Path
           text = Path("build-apk-excerpt.log").read_text(errors="replace")
-          text = text[-7000:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          text = text[:7000].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
           print(text)
           PY
           )"
