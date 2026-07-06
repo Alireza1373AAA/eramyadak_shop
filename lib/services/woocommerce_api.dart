@@ -1,8 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:dio/browser.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
+import 'package:eramyadak_shop/services/dio_web_credentials.dart';
 
 final _cookieJar = CookieJar();
 
@@ -30,9 +29,7 @@ void initHttp() {
 
 /// فقط وب/PWA: ارسال کوکی‌ها
 void enableWebCredentialsIfNeeded() {
-  if (kIsWeb) {
-    dio.httpClientAdapter = BrowserHttpClientAdapter()..withCredentials = true;
-  }
+  enableDioWebCredentials(dio);
 }
 
 /// Cache برای nonce

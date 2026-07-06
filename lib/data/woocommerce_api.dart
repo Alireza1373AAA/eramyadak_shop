@@ -2,11 +2,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
-import 'package:dio/browser.dart';
 import 'package:dio_cookie_manager/dio_cookie_manager.dart';
 import 'package:cookie_jar/cookie_jar.dart';
 import 'package:http/http.dart' as http;
 import 'package:eramyadak_shop/config.dart';
+import 'package:eramyadak_shop/services/dio_web_credentials.dart';
 
 class WooApiException implements Exception {
   final String message;
@@ -52,11 +52,7 @@ class WooApi {
   )..interceptors.add(CookieManager(_cookieJar)); // <-- use single CookieJar
 
   WooApi() {
-    if (kIsWeb) {
-      final adapter = BrowserHttpClientAdapter();
-      adapter.withCredentials = true;
-      _dio.httpClientAdapter = adapter;
-    }
+    enableDioWebCredentials(_dio);
     // Optional: uncomment to enable request/response logs in debug
     // if (kDebugMode) {
     //   _dio.interceptors.add(LogInterceptor(request: true, responseBody: true, requestBody: true));
