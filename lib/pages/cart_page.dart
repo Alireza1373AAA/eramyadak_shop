@@ -543,6 +543,12 @@ class _CartPageState extends State<CartPage> {
     }
   }
 
+  Future<void> _refreshCartAfterOrder() async {
+    await api.clearCartAfterOrder();
+    if (!mounted) return;
+    await _loadCart();
+  }
+
   Future<void> _openZarinpalCheckout() async {
     final amountRial = _totalToman * 10;
     if (amountRial < 1000) {
@@ -577,6 +583,8 @@ class _CartPageState extends State<CartPage> {
 
       if (result.ok) {
         if (!mounted) return;
+        await _refreshCartAfterOrder();
+        if (!mounted) return;
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
@@ -592,7 +600,6 @@ class _CartPageState extends State<CartPage> {
             ],
           ),
         );
-        await _loadCart();
       } else {
         if (!mounted) return;
         showDialog(
@@ -706,11 +713,8 @@ class _CartPageState extends State<CartPage> {
 
       if (res['success'] == true) {
         final id = res['order_id'] ?? res['id'] ?? res['orderId'];
-        await api.clearCartAfterOrder();
+        await _refreshCartAfterOrder();
         if (!mounted) return;
-        setState(() {
-          _cart = const {'items': []};
-        });
         await showDialog(
           context: context,
           builder: (_) => AlertDialog(
