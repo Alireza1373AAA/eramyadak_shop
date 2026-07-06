@@ -95,7 +95,7 @@ jobs:
       - name: Build release APK
         run: |
           set -o pipefail
-          flutter build apk --release --verbose 2>&1 | tee build-apk.log
+          flutter build apk --release 2>&1 | tee build-apk.log
 
       - name: Publish build failure summary
         if: failure()
