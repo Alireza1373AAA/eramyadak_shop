@@ -87,7 +87,7 @@ jobs:
 
       - name: Install Android build packages
         run: |
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;27.0.12077973"
+          sdkmanager "platform-tools" "platforms;android-35" "platforms;android-36" "build-tools;35.0.0" "build-tools;36.0.0" "ndk;27.0.12077973"
 
       - name: Install dependencies
         run: flutter pub get
@@ -121,4 +121,4 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add ci-logs/latest-build-apk.log
           git commit -m "Add latest APK build log [skip ci]" || exit 0
-          git push
+          git push || true
