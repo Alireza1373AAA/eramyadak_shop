@@ -102,16 +102,29 @@ jobs:
         shell: bash
         run: |
           if [ -f build-apk.log ]; then
-            tail -n 120 build-apk.log > build-apk-tail.log
+            python3 - <<'PY'
+          from pathlib import Path
+          lines = Path("build-apk.log").read_text(errors="replace").splitlines()
+          markers = (
+              "FAILURE: Build failed with an exception.",
+              "* What went wrong:",
+              "Execution failed for task",
+              "ERROR:",
+              "Error:",
+          )
+          start = next((i for i, line in enumerate(lines) if any(marker in line for marker in markers)), max(0, len(lines) - 160))
+          excerpt = lines[max(0, start - 20): min(len(lines), start + 180)]
+          Path("build-apk-excerpt.log").write_text("\n".join(excerpt), errors="replace")
+          PY
             {
               echo "## APK build failed"
               echo '```'
-              cat build-apk-tail.log
+              cat build-apk-excerpt.log
               echo '```'
             } >> "$GITHUB_STEP_SUMMARY"
             message="$(python3 - <<'PY'
           from pathlib import Path
-          text = Path("build-apk-tail.log").read_text(errors="replace")
+          text = Path("build-apk-excerpt.log").read_text(errors="replace")
           text = text[-7000:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
           print(text)
           PY
