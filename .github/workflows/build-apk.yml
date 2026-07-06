@@ -97,6 +97,28 @@ jobs:
           set -o pipefail
           flutter build apk --release --verbose 2>&1 | tee build-apk.log
 
+      - name: Publish build failure summary
+        if: failure()
+        shell: bash
+        run: |
+          if [ -f build-apk.log ]; then
+            tail -n 120 build-apk.log > build-apk-tail.log
+            {
+              echo "## APK build failed"
+              echo '```'
+              cat build-apk-tail.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            message="$(python3 - <<'PY'
+          from pathlib import Path
+          text = Path("build-apk-tail.log").read_text(errors="replace")
+          text = text[-7000:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(text)
+          PY
+          )"
+            echo "::error file=build-apk.log,title=APK build failure::$message"
+          fi
+
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -114,6 +136,7 @@ jobs:
 
       - name: Commit failed build log
         if: failure()
+        continue-on-error: true
         run: |
           mkdir -p ci-logs
           cp build-apk.log ci-logs/latest-build-apk.log
