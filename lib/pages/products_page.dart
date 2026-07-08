@@ -26,6 +26,7 @@ class _ProductsPageState extends State<ProductsPage> {
   int _page = 1;
   bool _loading = false;
   bool _hasMore = true;
+  bool _showOutOfStock = false;
   String? _error;
 
   @override
@@ -129,6 +130,15 @@ class _ProductsPageState extends State<ProductsPage> {
     return {'inStock': inStock, 'qty': qty, 'text': text, 'color': color};
   }
 
+  bool _isProductInStock(Map<String, dynamic> p) {
+    return (_productStockInfo(p)['inStock'] as bool?) ?? true;
+  }
+
+  List<Map<String, dynamic>> get _visibleItems {
+    if (_showOutOfStock) return _items;
+    return _items.where(_isProductInStock).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     // تعداد ستون‌ها بر اساس عرض صفحه (حداقل 2، حداکثر 4)
@@ -146,6 +156,16 @@ class _ProductsPageState extends State<ProductsPage> {
           title: Text(widget.categoryName),
           actions: [
             IconButton(
+              icon: Icon(
+                _showOutOfStock ? Icons.visibility_off : Icons.visibility,
+              ),
+              tooltip: _showOutOfStock
+                  ? 'مخفی کردن ناموجودها'
+                  : 'نمایش ناموجودها',
+              onPressed: () =>
+                  setState(() => _showOutOfStock = !_showOutOfStock),
+            ),
+            IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: _loading ? null : () => _load(first: true),
             ),
@@ -161,11 +181,13 @@ class _ProductsPageState extends State<ProductsPage> {
       return _ErrorView(message: _error!, onRetry: () => _load(first: true));
     }
 
+    final visibleItems = _visibleItems;
+
     if (_items.isEmpty && _loading) {
       return const Center(child: CircularProgressIndicator());
     }
 
-    if (_items.isEmpty) {
+    if (visibleItems.isEmpty) {
       return const Center(child: Text('محصولی یافت نشد.'));
     }
 
@@ -178,7 +200,7 @@ class _ProductsPageState extends State<ProductsPage> {
             padding: const EdgeInsets.all(12),
             sliver: SliverGrid(
               delegate: SliverChildBuilderDelegate((context, i) {
-                final p = _items[i];
+                final p = visibleItems[i];
                 final rawName = (p['name'] ?? '').toString();
                 final name = rawName.replaceAll(RegExp(r'<[^>]*>'), '').trim();
 
@@ -312,7 +334,7 @@ class _ProductsPageState extends State<ProductsPage> {
                     ),
                   ),
                 );
-              }, childCount: _items.length),
+              }, childCount: visibleItems.length),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: crossAxisCount,
                 mainAxisSpacing: 12,
