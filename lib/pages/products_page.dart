@@ -26,7 +26,7 @@ class _ProductsPageState extends State<ProductsPage> {
   int _page = 1;
   bool _loading = false;
   bool _hasMore = true;
-  bool _showOutOfStock = false;
+  bool _showOutOfStock = true;
   String? _error;
 
   @override
@@ -219,6 +219,7 @@ class _ProductsPageState extends State<ProductsPage> {
                 final stock = _productStockInfo(p);
                 final stockText = stock['text'] as String;
                 final stockColor = stock['color'] as Color;
+                final inStock = (stock['inStock'] as bool?) ?? true;
 
                 return Card(
                   elevation: 1.5,
@@ -234,10 +235,12 @@ class _ProductsPageState extends State<ProductsPage> {
                         MaterialPageRoute(
                           builder: (_) => ProductDetail(product: p),
                         ),
-                      ).then((_) => _load(first: true));
+                      );
                     },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                    child: Opacity(
+                      opacity: inStock ? 1 : 0.55,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         AspectRatio(
                           aspectRatio: 1,
@@ -333,6 +336,7 @@ class _ProductsPageState extends State<ProductsPage> {
                       ],
                     ),
                   ),
+                ),
                 );
               }, childCount: visibleItems.length),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

@@ -240,7 +240,12 @@ class _ProductDetailState extends State<ProductDetail> {
         .trim();
 
     final sku = (p['sku'] ?? '').toString();
-    final inStock = p['stock_status'] == 'instock' || p['is_in_stock'] == true;
+    final stockStatus = (p['stock_status'] ?? '').toString().toLowerCase();
+    final inStock =
+        stockStatus.contains('instock') ||
+        stockStatus.contains('onbackorder') ||
+        p['is_in_stock'] == true ||
+        p['in_stock'] == true;
 
     return Directionality(
       textDirection: TextDirection.rtl,
@@ -433,14 +438,16 @@ class _ProductDetailState extends State<ProductDetail> {
                         Row(
                           children: [
                             IconButton(
-                              onPressed: _quantity > 1
+                              onPressed: inStock && _quantity > 1
                                   ? () => setState(() => _quantity--)
                                   : null,
                               icon: const Icon(Icons.remove_circle_outline),
                             ),
                             Text('$_quantity'),
                             IconButton(
-                              onPressed: () => setState(() => _quantity++),
+                              onPressed: inStock
+                                  ? () => setState(() => _quantity++)
+                                  : null,
                               icon: const Icon(Icons.add_circle_outline),
                             ),
                           ],
@@ -503,7 +510,7 @@ class _ProductDetailState extends State<ProductDetail> {
                           ? 'در حال افزودن...'
                           : 'افزودن $_quantity به سبد',
                     ),
-                    onPressed: _loading ? null : _addToCart,
+                    onPressed: (_loading || !inStock) ? null : _addToCart,
                   ),
                 ),
                 const SizedBox(width: 10),

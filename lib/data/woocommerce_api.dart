@@ -303,63 +303,16 @@ class WooApi {
         return <String, dynamic>{};
       }).toList();
 
-      // quick stock detection, fall back to v3 if needed
-      final suspicious = <int>[];
+      // Keep product listing fast: use Store API stock fields only here.
+      // Product detail can still fetch richer data when needed.
       for (final p in list) {
         try {
           final quick = _mapIndicatesInStock(p);
           if (quick != null) {
             p['stock_status'] = quick ? 'instock' : 'outofstock';
-          } else {
-            final idDyn = p['id'];
-            final id = (idDyn is int)
-                ? idDyn
-                : int.tryParse(idDyn?.toString() ?? '');
-            if (id != null) suspicious.add(id);
           }
         } catch (e) {
           p['stock_status'] = p['stock_status'] ?? 'instock';
-        }
-      }
-
-      for (final id in suspicious) {
-        try {
-          final r2 = await http.get(
-            _wooV3('products/$id'),
-            headers: {'Authorization': _authHeader},
-          );
-          if (r2.statusCode == 200) {
-            final detail = jsonDecode(r2.body) as Map<String, dynamic>;
-            final idx = list.indexWhere((p) {
-              final idDyn = p['id'];
-              final pid = (idDyn is int)
-                  ? idDyn
-                  : int.tryParse(idDyn?.toString() ?? '');
-              return pid == id;
-            });
-            if (idx >= 0) {
-              final target = list[idx];
-              final stockStatus =
-                  (detail['stock_status']?.toString().toLowerCase() ?? '');
-              if (stockStatus == 'instock' || stockStatus == 'onbackorder')
-                target['stock_status'] = 'instock';
-              else if (stockStatus == 'outofstock')
-                target['stock_status'] = 'outofstock';
-              else {
-                final q =
-                    int.tryParse(detail['stock_quantity']?.toString() ?? '') ??
-                    0;
-                target['stock_status'] = (q > 0) ? 'instock' : 'outofstock';
-              }
-              if (detail.containsKey('stock_quantity'))
-                target['stock_quantity'] = detail['stock_quantity'];
-              if (detail['type'] == 'variable' &&
-                  detail.containsKey('variations'))
-                target['variations'] = detail['variations'];
-            }
-          }
-        } catch (e) {
-          debugPrint('WooApi: v3 fallback error for id=$id: $e');
         }
       }
 
