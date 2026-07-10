@@ -31,8 +31,11 @@ class StoreApi {
   static String _storeApiNonce = '';
   static const String _cookieStorageKey = 'eram_store_api_cookie';
   static const String _nonceStorageKey = 'eram_store_api_nonce';
+  static const String _cartBackupStorageKey = 'eram_store_api_cart_backup';
   bool _sessionRestored = false;
+  bool _restoringCartBackup = false;
   Future<void>? _sessionRestoreFuture;
+  Future<Map<String, dynamic>?>? _cartBackupRestoreFuture;
 
   /// ---------- Helpers ----------
   Uri _u(String path, [Map<String, String>? qp]) {
@@ -95,6 +98,105 @@ class StoreApi {
     } catch (e) {
       debugPrint('StoreApi: persist session failed: $e');
     }
+  }
+
+  Future<Map<String, dynamic>?> _readCartBackup() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final raw = sp.getString(_cartBackupStorageKey);
+      if (raw == null || raw.isEmpty) return null;
+      final decoded = json.decode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } catch (e) {
+      debugPrint('StoreApi: read cart backup failed: $e');
+    }
+    return null;
+  }
+
+  Future<void> _persistCartBackup(Map<String, dynamic> cart) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (_cartItems(cart).isEmpty) {
+        await sp.remove(_cartBackupStorageKey);
+      } else {
+        await sp.setString(_cartBackupStorageKey, json.encode(cart));
+      }
+    } catch (e) {
+      debugPrint('StoreApi: persist cart backup failed: $e');
+    }
+  }
+
+  Future<void> _clearCartBackup() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.remove(_cartBackupStorageKey);
+    } catch (e) {
+      debugPrint('StoreApi: clear cart backup failed: $e');
+    }
+  }
+
+  int? _asInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.round();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  dynamic _nestedValue(Map<dynamic, dynamic> item, String key, String nested) {
+    final value = item[key];
+    if (value is Map) return value[nested];
+    return null;
+  }
+
+  Map<String, String>? _cartVariationAttributes(Map<dynamic, dynamic> item) {
+    final raw = item['variation'];
+    final attrs = <String, String>{};
+
+    if (raw is List) {
+      for (final entry in raw) {
+        if (entry is! Map) continue;
+        final attribute =
+            (entry['attribute'] ?? entry['name'] ?? entry['slug'] ?? '')
+                .toString();
+        final value = (entry['value'] ?? entry['raw_value'] ?? '').toString();
+        if (attribute.isNotEmpty && value.isNotEmpty) attrs[attribute] = value;
+      }
+    } else if (raw is Map) {
+      raw.forEach((key, value) {
+        final name = key.toString();
+        final val = value?.toString() ?? '';
+        if (name != 'id' && name != 'variation_id' && val.isNotEmpty) {
+          attrs[name] = val;
+        }
+      });
+    }
+
+    return attrs.isEmpty ? null : attrs;
+  }
+
+  Map<String, dynamic>? _cartLineForRestore(dynamic item) {
+    if (item is! Map) return null;
+
+    final productId = _asInt(
+      item['product_id'] ?? item['id'] ?? _nestedValue(item, 'product', 'id'),
+    );
+    if (productId == null || productId <= 0) return null;
+
+    final quantity = _asInt(item['quantity'] ?? item['qty']) ?? 1;
+    final variationId = _asInt(
+      item['variation_id'] ??
+          _nestedValue(item, 'variation', 'id') ??
+          _nestedValue(item, 'variation', 'variation_id'),
+    );
+    final attributes = _cartVariationAttributes(item);
+
+    return {
+      'productId': productId,
+      'quantity': quantity < 1 ? 1 : quantity,
+      if (variationId != null && variationId > 0) 'variationId': variationId,
+      if (attributes != null) 'attributes': attributes,
+    };
   }
 
   Future<void> _captureAuthFromResponse(http.BaseResponse r) async {
@@ -186,28 +288,24 @@ class StoreApi {
     return resp;
   }
 
-  /// ---------- Public APIs ----------
-
-  Future<void> ensureSession() async {
+  Future<Map<String, dynamic>> _fetchCartFromServer() async {
     final r = await _get(_u('/wp-json/wc/store/v1/cart'));
-    if (r.statusCode != 200)
-      throw HttpException('Cart init ${r.statusCode}: ${r.body}');
-  }
-
-  Future<Map<String, dynamic>> getCart() async {
-    final r = await _get(_u('/wp-json/wc/store/v1/cart'));
-    if (r.statusCode != 200)
+    if (r.statusCode != 200) {
       throw HttpException('Cart ${r.statusCode}: ${r.body}');
-    return json.decode(r.body) as Map<String, dynamic>;
+    }
+    final decoded = json.decode(r.body);
+    if (decoded is Map<String, dynamic>) return decoded;
+    if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    throw HttpException('Cart response is not an object');
   }
 
-  Future<void> addToCart({
+  Future<http.Response> _addCartLineToServer({
     required int productId,
     int quantity = 1,
     int? variationId,
     Map<String, String>? attributes,
   }) async {
-    Future<http.Response> _doPost() =>
+    Future<http.Response> doPost() =>
         _post(_u('/wp-json/wc/store/v1/cart/add-item'), {
           'id': productId,
           'quantity': quantity,
@@ -217,14 +315,134 @@ class StoreApi {
                 .map((e) => {'attribute': e.key, 'value': e.value})
                 .toList(),
         });
-    var r = await _doPost();
+
+    var r = await doPost();
     if (r.statusCode == 401 ||
         r.body.contains('woocommerce_rest_missing_nonce')) {
       await ensureSession();
-      r = await _doPost();
+      r = await doPost();
     }
-    if (r.statusCode != 200 && r.statusCode != 201)
+    if (r.statusCode != 200 && r.statusCode != 201) {
       throw HttpException('Add item ${r.statusCode}: ${r.body}');
+    }
+    return r;
+  }
+
+  Future<void> _syncCartBackupFromServer({bool clearWhenEmpty = true}) async {
+    try {
+      final cart = await _fetchCartFromServer();
+      if (_cartItems(cart).isEmpty) {
+        if (clearWhenEmpty) await _clearCartBackup();
+      } else {
+        await _persistCartBackup(cart);
+      }
+    } catch (e) {
+      debugPrint('StoreApi: sync cart backup failed: $e');
+    }
+  }
+
+  Future<Map<String, dynamic>?> _restoreCartBackupToServer() async {
+    final pending = _cartBackupRestoreFuture;
+    if (pending != null) return pending;
+
+    final future = _restoreCartBackupToServerOnce();
+    _cartBackupRestoreFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_cartBackupRestoreFuture, future)) {
+        _cartBackupRestoreFuture = null;
+      }
+    }
+  }
+
+  Future<Map<String, dynamic>?> _restoreCartBackupToServerOnce() async {
+    if (_restoringCartBackup) return null;
+
+    final backup = await _readCartBackup();
+    if (backup == null || _cartItems(backup).isEmpty) return null;
+
+    _restoringCartBackup = true;
+    try {
+      var restoredAny = false;
+      for (final item in _cartItems(backup)) {
+        final line = _cartLineForRestore(item);
+        if (line == null) continue;
+
+        try {
+          await _addCartLineToServer(
+            productId: line['productId'] as int,
+            quantity: line['quantity'] as int,
+            variationId: line['variationId'] as int?,
+            attributes: line['attributes'] as Map<String, String>?,
+          );
+          restoredAny = true;
+        } catch (e) {
+          debugPrint('StoreApi: restore cart item failed: $e');
+        }
+      }
+
+      if (restoredAny) {
+        final restored = await _fetchCartFromServer();
+        if (_cartItems(restored).isNotEmpty) {
+          await _persistCartBackup(restored);
+          return restored;
+        }
+      }
+
+      return backup;
+    } finally {
+      _restoringCartBackup = false;
+    }
+  }
+
+  Future<void> _restoreCartBackupIfCurrentCartIsEmpty() async {
+    if (_restoringCartBackup) return;
+    try {
+      final current = await _fetchCartFromServer();
+      if (_cartItems(current).isEmpty) {
+        await _restoreCartBackupToServer();
+      } else {
+        await _persistCartBackup(current);
+      }
+    } catch (e) {
+      debugPrint('StoreApi: pre-add cart restore check failed: $e');
+    }
+  }
+
+  /// ---------- Public APIs ----------
+
+  Future<void> ensureSession() async {
+    final r = await _get(_u('/wp-json/wc/store/v1/cart'));
+    if (r.statusCode != 200)
+      throw HttpException('Cart init ${r.statusCode}: ${r.body}');
+  }
+
+  Future<Map<String, dynamic>> getCart() async {
+    final cart = await _fetchCartFromServer();
+    if (_cartItems(cart).isNotEmpty) {
+      await _persistCartBackup(cart);
+      return cart;
+    }
+
+    final restored = await _restoreCartBackupToServer();
+    return restored ?? cart;
+  }
+
+  Future<void> addToCart({
+    required int productId,
+    int quantity = 1,
+    int? variationId,
+    Map<String, String>? attributes,
+  }) async {
+    await _restoreCartBackupIfCurrentCartIsEmpty();
+    await _addCartLineToServer(
+      productId: productId,
+      quantity: quantity,
+      variationId: variationId,
+      attributes: attributes,
+    );
+    await _syncCartBackupFromServer(clearWhenEmpty: false);
   }
 
   Future<void> updateItemQty({
@@ -243,6 +461,7 @@ class StoreApi {
     }
     if (r.statusCode != 200)
       throw HttpException('Update qty ${r.statusCode}: ${r.body}');
+    await _syncCartBackupFromServer();
   }
 
   Future<void> removeItem({required String itemKey}) async {
@@ -256,6 +475,7 @@ class StoreApi {
     }
     if (r.statusCode != 200)
       throw HttpException('Remove ${r.statusCode}: ${r.body}');
+    await _syncCartBackupFromServer();
   }
 
   Future<void> clearCart() async {
@@ -269,6 +489,7 @@ class StoreApi {
     }
     if (r.statusCode != 200)
       throw HttpException('Clear cart ${r.statusCode}: ${r.body}');
+    await _clearCartBackup();
   }
 
   /// ثبت سفارش چک با مدیریت 401/403
@@ -312,7 +533,10 @@ class StoreApi {
     }
 
     final refreshed = await getCart();
-    if (_cartItems(refreshed).isEmpty) return;
+    if (_cartItems(refreshed).isEmpty) {
+      await _clearCartBackup();
+      return;
+    }
 
     throw HttpException(
       'Order created but cart could not be cleared: ${lastError ?? (removedAny ? 'items remain' : 'missing item keys')}',
