@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 import 'package:eramyadak_shop/config.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// تنظیمات پایه برای Store API
 class StoreConfig {
@@ -28,6 +29,10 @@ class StoreApi {
   final http.Client _client = http.Client();
   static String _cookie = '';
   static String _storeApiNonce = '';
+  static const String _cookieStorageKey = 'eram_store_api_cookie';
+  static const String _nonceStorageKey = 'eram_store_api_nonce';
+  bool _sessionRestored = false;
+  Future<void>? _sessionRestoreFuture;
 
   /// ---------- Helpers ----------
   Uri _u(String path, [Map<String, String>? qp]) {
@@ -56,8 +61,45 @@ class StoreApi {
     return map;
   }
 
-  void _captureAuthFromResponse(http.BaseResponse r) {
+  Future<void> _restoreStoredSession() async {
+    if (_sessionRestored) return;
+    final pending = _sessionRestoreFuture;
+    if (pending != null) return pending;
+
+    final future = () async {
+      try {
+        final sp = await SharedPreferences.getInstance();
+        _cookie = sp.getString(_cookieStorageKey) ?? _cookie;
+        _storeApiNonce = sp.getString(_nonceStorageKey) ?? _storeApiNonce;
+      } catch (e) {
+        debugPrint('StoreApi: restore session failed: $e');
+      } finally {
+        _sessionRestored = true;
+        _sessionRestoreFuture = null;
+      }
+    }();
+
+    _sessionRestoreFuture = future;
+    return future;
+  }
+
+  Future<void> _persistSession() async {
     try {
+      final sp = await SharedPreferences.getInstance();
+      if (_cookie.isNotEmpty) {
+        await sp.setString(_cookieStorageKey, _cookie);
+      }
+      if (_storeApiNonce.isNotEmpty) {
+        await sp.setString(_nonceStorageKey, _storeApiNonce);
+      }
+    } catch (e) {
+      debugPrint('StoreApi: persist session failed: $e');
+    }
+  }
+
+  Future<void> _captureAuthFromResponse(http.BaseResponse r) async {
+    try {
+      var changed = false;
       final setCookieRaw = r.headers['set-cookie'];
       if (setCookieRaw?.isNotEmpty ?? false) {
         final parts = setCookieRaw!.split(RegExp(r',(?=\s*\w+=)'));
@@ -83,7 +125,11 @@ class StoreApi {
             existing.removeWhere((e) => e.split('=').first == keyName);
             existing.add(k);
           }
-          _cookie = existing.join('; ');
+          final nextCookie = existing.join('; ');
+          if (nextCookie != _cookie) {
+            _cookie = nextCookie;
+            changed = true;
+          }
         }
       }
 
@@ -92,7 +138,13 @@ class StoreApi {
         final key = k.toLowerCase();
         if (key == 'x-wc-store-api-nonce' || key == 'x-wp-nonce') nonce = v;
       });
-      if (nonce?.isNotEmpty ?? false) _storeApiNonce = nonce!;
+      if (nonce?.isNotEmpty ?? false) {
+        if (nonce != _storeApiNonce) {
+          _storeApiNonce = nonce!;
+          changed = true;
+        }
+      }
+      if (changed) await _persistSession();
       debugPrint('StoreApi: cookie="$_cookie" nonce="$_storeApiNonce"');
     } catch (e) {
       debugPrint('StoreApi: captureAuthFromResponse failed: $e');
@@ -100,19 +152,21 @@ class StoreApi {
   }
 
   Future<http.Response> _get(Uri url) async {
+    await _restoreStoredSession();
     final resp = await _client
         .get(url, headers: _headers)
         .timeout(StoreConfig.requestTimeout);
-    _captureAuthFromResponse(resp);
+    await _captureAuthFromResponse(resp);
     return resp;
   }
 
   Future<http.Response> _post(Uri url, Object? body) async {
+    await _restoreStoredSession();
     final payload = body is String ? body : json.encode(body);
     final resp = await _client
         .post(url, headers: _headers, body: payload)
         .timeout(StoreConfig.requestTimeout);
-    _captureAuthFromResponse(resp);
+    await _captureAuthFromResponse(resp);
     return resp;
   }
 
@@ -121,13 +175,14 @@ class StoreApi {
     Object? body, {
     Map<String, String>? extraHeaders,
   }) async {
+    await _restoreStoredSession();
     final payload = body is String ? body : json.encode(body);
     final headers = Map<String, String>.from(_headers);
     if (extraHeaders != null) headers.addAll(extraHeaders);
     final resp = await _client
         .post(url, headers: headers, body: payload)
         .timeout(StoreConfig.requestTimeout);
-    _captureAuthFromResponse(resp);
+    await _captureAuthFromResponse(resp);
     return resp;
   }
 
