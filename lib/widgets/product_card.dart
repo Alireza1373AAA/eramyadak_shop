@@ -52,16 +52,100 @@ class _ProductCardState extends State<ProductCard> {
     return null;
   }
 
+  bool? _stockTextIndicatesInStock(dynamic value) {
+    if (value == null) return null;
+    if (value is Map) {
+      for (final entry in value.values) {
+        final parsed = _stockTextIndicatesInStock(entry);
+        if (parsed != null) return parsed;
+      }
+      return null;
+    }
+    if (value is Iterable) {
+      for (final entry in value) {
+        final parsed = _stockTextIndicatesInStock(entry);
+        if (parsed != null) return parsed;
+      }
+      return null;
+    }
+
+    final text = value.toString().toLowerCase();
+    if (text.isEmpty) return null;
+    if (text.contains('outofstock') ||
+        text.contains('out of stock') ||
+        text.contains('product_out_of_stock') ||
+        text.contains('unavailable') ||
+        text.contains('ناموجود') ||
+        text.contains('تمام شد') ||
+        text.contains('عدم موجودی')) {
+      return false;
+    }
+    if (text.contains('instock') ||
+        text.contains('in stock') ||
+        text.contains('onbackorder') ||
+        text.contains('available') ||
+        text.contains('موجود')) {
+      return true;
+    }
+    return null;
+  }
+
+  bool _isInStock(Map<String, dynamic> item) {
+    for (final key in ['in_stock', 'is_in_stock', 'available', 'stocked']) {
+      final value = item[key];
+      if (value is bool) return value;
+      if (value is num) return value > 0;
+      final parsed = _stockTextIndicatesInStock(value);
+      if (parsed != null) return parsed;
+    }
+
+    for (final key in [
+      'stock_status',
+      'stock_availability',
+      'availability',
+      'availability_html',
+      'stock_html',
+    ]) {
+      final parsed = _stockTextIndicatesInStock(item[key]);
+      if (parsed != null) return parsed;
+    }
+
+    if (item.containsKey('stock_quantity')) {
+      final qty = int.tryParse(item['stock_quantity']?.toString() ?? '');
+      if (qty != null) return qty > 0;
+    }
+
+    return true;
+  }
+
+  bool _isOutOfStockError(Object error) {
+    final text = error.toString().toLowerCase();
+    return text.contains('product_out_of_stock') ||
+        text.contains('out_of_stock') ||
+        text.contains('outofstock') ||
+        text.contains('out of stock') ||
+        text.contains('ناموجود') ||
+        text.contains('موجودی');
+  }
+
   Future<void> _addToCart() async {
+    if (!_isInStock(widget.p)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('این محصول ناموجود است.')),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
     try {
       final productId = widget.p['id'];
       if (productId == null) throw Exception('Product ID is null');
-      
+
       await _api.ensureSession();
-      final id = (productId is int) ? productId : int.parse(productId.toString());
+      final id =
+          (productId is int) ? productId : int.parse(productId.toString());
       await _api.addToCart(productId: id, quantity: 1);
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -69,12 +153,20 @@ class _ProductCardState extends State<ProductCard> {
           duration: Duration(seconds: 2),
         ),
       );
-      
+
       if (widget.onCartUpdated != null) {
         await widget.onCartUpdated!();
       }
     } catch (e) {
       if (!mounted) return;
+      if (_isOutOfStockError(e)) {
+        widget.p['stock_status'] = 'outofstock';
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('این محصول ناموجود است.')),
+        );
+        setState(() {});
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('خطا: $e')),
       );
@@ -85,12 +177,11 @@ class _ProductCardState extends State<ProductCard> {
 
   @override
   Widget build(BuildContext context) {
-    final name =
-        (widget.p['name'] ??
-                widget.p['title'] ??
-                (widget.p['product'] is Map ? widget.p['product']['name'] : null) ??
-                '')
-            .toString();
+    final name = (widget.p['name'] ??
+            widget.p['title'] ??
+            (widget.p['product'] is Map ? widget.p['product']['name'] : null) ??
+            '')
+        .toString();
 
     String? imageUrl;
     final images = widget.p['images'];
@@ -104,6 +195,7 @@ class _ProductCardState extends State<ProductCard> {
 
     final unitToman = _readUnitToman(widget.p);
     final cartonToman = _readCartonToman(widget.p);
+    final inStock = _isInStock(widget.p);
 
     Widget priceWidget() {
       final children = <Widget>[];
@@ -148,19 +240,52 @@ class _ProductCardState extends State<ProductCard> {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
-                child: imageUrl == null
-                    ? Container(
-                        color: Colors.grey.shade200,
-                        child: const Icon(Icons.image_not_supported, size: 40),
-                      )
-                    : Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(
-                          color: Colors.grey.shade200,
-                          child: const Icon(Icons.image_not_supported),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    imageUrl == null
+                        ? Container(
+                            color: Colors.grey.shade200,
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 40,
+                            ),
+                          )
+                        : Image.network(
+                            imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: Colors.grey.shade200,
+                              child: const Icon(Icons.image_not_supported),
+                            ),
+                          ),
+                    if (!inStock)
+                      Container(color: Colors.white.withOpacity(.58)),
+                    if (!inStock)
+                      Positioned(
+                        top: 8,
+                        right: 8,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 9,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.redAccent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'ناموجود',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
                         ),
                       ),
+                  ],
+                ),
               ),
             ),
             Padding(
@@ -176,7 +301,7 @@ class _ProductCardState extends State<ProductCard> {
                     children: [
                       Expanded(
                         child: ElevatedButton(
-                          onPressed: _loading ? null : _addToCart,
+                          onPressed: (_loading || !inStock) ? null : _addToCart,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color.fromARGB(
                               255,
@@ -184,8 +309,12 @@ class _ProductCardState extends State<ProductCard> {
                               12,
                               12,
                             ),
+                            disabledBackgroundColor: Colors.grey.shade500,
+                            disabledForegroundColor: Colors.white,
                           ),
-                          child: const Text('افزودن به سبد'),
+                          child: Text(
+                            inStock ? 'افزودن به سبد' : 'ناموجود',
+                          ),
                         ),
                       ),
                     ],
